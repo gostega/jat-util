@@ -21,9 +21,11 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  # Prerelease tags (v0.1.2-rc1) still get built and tested by the job above,
+  # but are never published — cutting a formal release stays a deliberate act.
   release:
     needs: test
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' && !contains(github.ref_name, '-rc')
     runs-on: ubuntu-latest
     strategy:
       matrix:
