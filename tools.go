@@ -87,6 +87,10 @@ var tools = map[string]Tool{
 		Methods: map[string]string{"brew": "brew install gh"},
 		Docs:    "https://cli.github.com",
 	},
+	"op": {
+		Methods: map[string]string{"cask": "brew install --cask 1password-cli", "apt": "sudo apt-get install -y 1password-cli"},
+		Docs:    "https://developer.1password.com/docs/cli",
+	},
 	"uv": {
 		Methods: map[string]string{"brew": "brew install uv", "curlscript": "curl -LsSf https://astral.sh/uv/install.sh | sh"},
 		Docs:    "https://docs.astral.sh/uv/",

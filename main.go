@@ -22,8 +22,12 @@ var (
 	Commit  = "unknown"
 )
 
+// Profile is the OS axis: it decides how things get installed. Host is the
+// machine axis: work and personal Macs share a profile but not their config,
+// so config selection keys off this instead.
 type Config struct {
 	Profile string `json:"profile"`
+	Host    string `json:"host"`
 }
 
 func main() {
@@ -40,6 +44,10 @@ func main() {
 		err = cmdInstall(os.Args[2:])
 	case "list":
 		err = cmdList(os.Args[2:])
+	case "export":
+		err = cmdExport(os.Args[2:])
+	case "import":
+		err = cmdImport(os.Args[2:])
 	case "update":
 		err = cmdUpdate(os.Args[2:])
 	case "release":
@@ -59,9 +67,13 @@ func main() {
 
 func usage() {
 	fmt.Fprint(os.Stderr, `usage:
-  jat init [--profile <name>]        set and save the OS profile
+  jat init [--profile <name>] [--host <name>]
+                                     save the OS profile and this machine's name
   jat install <tool> [--<method>] [--show]
   jat list                           known tools and their default method
+  jat export [--out <file>] [--include-secrets] [--show]
+                                     bundle known config for another machine
+  jat import <bundle> [--show] [--force]
   jat update [--check]               replace this binary with the latest release
   jat release [patch|minor|major]    tag and push a new release
   jat version
@@ -73,6 +85,7 @@ methods: `+strings.Join(allMethods, ", ")+`
 func cmdInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	profile := fs.String("profile", "", "profile to use (default: detected from this OS)")
+	host := fs.String("host", "", "name for this machine (default: its hostname)")
 	fs.Parse(args)
 
 	p := *profile
@@ -82,10 +95,19 @@ func cmdInit(args []string) error {
 	if _, ok := profileOrder[p]; !ok {
 		return fmt.Errorf("unknown profile %q (known: %s)", p, strings.Join(knownProfiles(), ", "))
 	}
-	if err := saveConfig(Config{Profile: p}); err != nil {
+
+	h := slugHost(*host)
+	if h == "" {
+		if *host != "" {
+			return fmt.Errorf("host %q has no usable characters (want letters, digits or -)", *host)
+		}
+		h = detectHost()
+	}
+
+	if err := saveConfig(Config{Profile: p, Host: h}); err != nil {
 		return err
 	}
-	fmt.Printf("profile %q saved to %s\n", p, configPath())
+	fmt.Printf("profile %q, host %q saved to %s\n", p, h, configPath())
 	return nil
 }
 
@@ -200,6 +222,38 @@ func flagsFirst(args []string) []string {
 	return append(flags, positional...)
 }
 
+// slugHost reduces a host name to [a-z0-9-]. The value ends up as a path
+// segment when config is looked up per-machine, so it must not be able to
+// carry a separator or traverse upwards.
+func slugHost(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_' || r == '.' || r == ' ':
+			b.WriteRune('-')
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+// detectHost falls back to the machine's own hostname. Ugly but stable and
+// unique, and `jat init --host` exists for when you want a name you chose.
+func detectHost() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return "unknown"
+	}
+	// macOS hostnames arrive as "thing.local" / "thing.lan"; the suffix is
+	// noise that changes with the network.
+	name, _, _ = strings.Cut(name, ".")
+	if h := slugHost(name); h != "" {
+		return h
+	}
+	return "unknown"
+}
+
 func detectProfile() string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -224,7 +278,7 @@ func configPath() string {
 func loadConfig() (Config, error) {
 	b, err := os.ReadFile(configPath())
 	if errors.Is(err, fs.ErrNotExist) {
-		return Config{Profile: detectProfile()}, nil
+		return Config{Profile: detectProfile(), Host: detectHost()}, nil
 	}
 	if err != nil {
 		return Config{}, err

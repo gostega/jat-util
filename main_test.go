@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolve(t *testing.T) {
 	cases := []struct {
@@ -86,5 +89,77 @@ func TestBumpVersion(t *testing.T) {
 	}
 	if _, err := bumpVersion("v1.2.3", "sideways"); err == nil {
 		t.Error("bumpVersion: want error on unknown bump")
+	}
+}
+
+func TestSlugHost(t *testing.T) {
+	// Becomes a path segment when config is looked up per-machine, so nothing
+	// that could carry a separator or traverse upwards may survive.
+	for in, want := range map[string]string{
+		"work-mac":         "work-mac",
+		"Work Mac":         "work-mac",
+		"MAC-WT2XY0206L":   "mac-wt2xy0206l",
+		"thing.local":      "thing-local",
+		"../../etc/passwd": "etcpasswd",
+		"a/b":              "ab",
+		"///":              "",
+		"":                 "",
+	} {
+		if got := slugHost(in); got != want {
+			t.Errorf("slugHost(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for _, in := range []string{"../../etc/passwd", "a/b", "x\\y", "a b/../c"} {
+		if got := slugHost(in); strings.ContainsAny(got, `/\.`) {
+			t.Errorf("slugHost(%q) = %q, still contains a path character", in, got)
+		}
+	}
+}
+
+func TestBundleRel(t *testing.T) {
+	// A bundle is untrusted input: these must never resolve to a path outside
+	// $HOME, however the entry is spelled.
+	for _, bad := range []string{
+		"home/../../.ssh/authorized_keys",
+		"home/../.bashrc",
+		"home/../../../etc/passwd",
+		"/etc/passwd",
+		"etc/passwd", // missing the prefix entirely
+		"home/..",
+		"manifest.json.evil",
+	} {
+		if got, err := bundleRel(bad); err == nil {
+			t.Errorf("bundleRel(%q) = %q, want error", bad, got)
+		}
+	}
+
+	for in, want := range map[string]string{
+		"home/.bashrc":                ".bashrc",
+		"home/.config/ghostty/config": ".config/ghostty/config",
+		"home/.aws/config":            ".aws/config",
+		"home/a/../b":                 "b", // cleaned, still inside
+	} {
+		got, err := bundleRel(in)
+		if err != nil || got != want {
+			t.Errorf("bundleRel(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+}
+
+func TestConfigsSecretsAreMarked(t *testing.T) {
+	// Anything holding keys or tokens must be Secret, or it lands in a bundle
+	// by default. Guards against a future path being added to the wrong entry.
+	mustBeSecret := []string{".ssh", ".gnupg", ".aws/credentials", ".aws/sso", ".config/gh", ".reftool/config.json", ".claude.json"}
+	for name, item := range configs {
+		if item.Secret {
+			continue
+		}
+		for _, p := range item.Paths {
+			for _, s := range mustBeSecret {
+				if p == s {
+					t.Errorf("configs[%q] contains %q but is not marked Secret", name, p)
+				}
+			}
+		}
 	}
 }
