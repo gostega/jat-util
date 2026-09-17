@@ -44,6 +44,8 @@ func main() {
 		err = cmdInstall(os.Args[2:])
 	case "list":
 		err = cmdList(os.Args[2:])
+	case "migrate":
+		err = cmdMigrate(os.Args[2:])
 	case "export":
 		err = cmdExport(os.Args[2:])
 	case "import":
@@ -71,6 +73,8 @@ func usage() {
                                      save the OS profile and this machine's name
   jat install <tool> [--<method>] [--show]
   jat list                           known tools and their default method
+  jat migrate send [--transport file] [--out <file>] [--all] [--include-secrets]
+                                     pick config and bundle it for another machine
   jat export [--out <file>] [--include-secrets] [--show]
                                      bundle known config for another machine
   jat import <bundle> [--show] [--force]

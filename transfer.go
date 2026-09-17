@@ -22,11 +22,68 @@ import (
 const bundlePrefix = "home/"
 
 type Manifest struct {
-	Created  time.Time `json:"created"`
-	Host     string    `json:"host"`
-	Profile  string    `json:"profile"`
-	Captured []string  `json:"captured"`
-	Skipped  []string  `json:"skipped"`
+	Created time.Time `json:"created"`
+	Host    string    `json:"host"`
+	Profile string    `json:"profile"`
+	// Key disambiguates migrations in flight; it is an identifier, never a
+	// cryptographic key. User is the OS account, so receive can show who and
+	// where a bundle came from before you open it.
+	Key      string   `json:"key,omitempty"`
+	User     string   `json:"user,omitempty"`
+	Captured []string `json:"captured"`
+	Skipped  []string `json:"skipped"`
+}
+
+// expandPaths resolves a config item's patterns to paths that exist under
+// home, relative to it. A pattern may be a literal or a glob.
+func expandPaths(home string, patterns []string) []string {
+	var out []string
+	for _, pat := range patterns {
+		if !strings.ContainsAny(pat, "*?[") {
+			if _, err := os.Lstat(filepath.Join(home, pat)); err == nil {
+				out = append(out, pat)
+			}
+			continue
+		}
+		matches, err := filepath.Glob(filepath.Join(home, pat))
+		if err != nil {
+			continue
+		}
+		for _, m := range matches {
+			out = append(out, relOf(home, m))
+		}
+	}
+	return out
+}
+
+// writeBundle tars the named config items into dest and appends the manifest.
+// Shared by export and migrate send so there is exactly one bundle format.
+func writeBundle(dest, home string, names []string, man *Manifest) error {
+	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("could not create %s (it may already exist): %w", dest, err)
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+	tw := tar.NewWriter(gz)
+	defer tw.Close()
+
+	for _, name := range names {
+		paths := expandPaths(home, configs[name].Paths)
+		if len(paths) == 0 {
+			man.Skipped = append(man.Skipped, name+" (not present on this machine)")
+			continue
+		}
+		for _, rel := range paths {
+			if err := addPath(tw, home, rel, man); err != nil {
+				return fmt.Errorf("%s: %w", rel, err)
+			}
+		}
+		man.Captured = append(man.Captured, name)
+	}
+	return writeManifest(tw, *man)
 }
 
 func cmdExport(args []string) error {
@@ -45,35 +102,23 @@ func cmdExport(args []string) error {
 		return err
 	}
 
-	man := Manifest{Created: time.Now(), Host: cfg.Host, Profile: cfg.Profile}
-	type entry struct{ name, rel string }
-	var pending []entry
+	man := Manifest{Created: time.Now(), Host: cfg.Host, Profile: cfg.Profile, User: osUsername()}
 
+	var names []string
 	for _, name := range slices.Sorted(maps(configs)) {
-		item := configs[name]
-		if item.Secret && !*withSecrets {
+		if configs[name].Secret && !*withSecrets {
 			man.Skipped = append(man.Skipped, name+" (secret; --include-secrets to add)")
 			continue
 		}
-		found := false
-		for _, rel := range item.Paths {
-			if _, err := os.Lstat(filepath.Join(home, rel)); err != nil {
-				continue
-			}
-			pending = append(pending, entry{name, rel})
-			found = true
-		}
-		if !found {
-			man.Skipped = append(man.Skipped, name+" (not present on this machine)")
-		} else {
-			man.Captured = append(man.Captured, name)
-		}
+		names = append(names, name)
 	}
 
 	if *show {
 		fmt.Printf("would export from %s (host %s):\n", home, cfg.Host)
-		for _, e := range pending {
-			fmt.Printf("  %-18s %s\n", e.name, e.rel)
+		for _, name := range names {
+			for _, rel := range expandPaths(home, configs[name].Paths) {
+				fmt.Printf("  %-18s %s\n", name, rel)
+			}
 		}
 		fmt.Println("\nskipped:")
 		for _, s := range man.Skipped {
@@ -86,23 +131,7 @@ func cmdExport(args []string) error {
 	if dest == "" {
 		dest = fmt.Sprintf("jat-export-%s-%s.tar.gz", cfg.Host, time.Now().Format("2006-01-02"))
 	}
-	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return fmt.Errorf("could not create %s (it may already exist): %w", dest, err)
-	}
-	defer f.Close()
-
-	gz := gzip.NewWriter(f)
-	defer gz.Close()
-	tw := tar.NewWriter(gz)
-	defer tw.Close()
-
-	for _, e := range pending {
-		if err := addPath(tw, home, e.rel, &man); err != nil {
-			return fmt.Errorf("%s: %w", e.rel, err)
-		}
-	}
-	if err := writeManifest(tw, man); err != nil {
+	if err := writeBundle(dest, home, names, &man); err != nil {
 		return err
 	}
 

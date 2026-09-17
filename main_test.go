@@ -149,7 +149,7 @@ func TestBundleRel(t *testing.T) {
 func TestConfigsSecretsAreMarked(t *testing.T) {
 	// Anything holding keys or tokens must be Secret, or it lands in a bundle
 	// by default. Guards against a future path being added to the wrong entry.
-	mustBeSecret := []string{".ssh", ".gnupg", ".aws/credentials", ".aws/sso", ".config/gh", ".reftool/config.json", ".claude.json"}
+	mustBeSecret := []string{".ssh", ".gnupg", ".aws/credentials", ".aws/sso", ".config/gh", ".claude.json"}
 	for name, item := range configs {
 		if item.Secret {
 			continue

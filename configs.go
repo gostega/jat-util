@@ -23,7 +23,10 @@ var configs = map[string]ConfigItem{
 		Desc:  "zsh startup files",
 	},
 	"git": {
-		Paths: []string{".gitconfig", ".gitconfig-personal", ".gitconfig-work", ".gitconfig-client"},
+		// Glob rather than a list: includeIf overlays are named per identity,
+		// so the set differs on every machine. ".gitconfig-*" catches them all
+		// while leaving ".gitconfig.bak.*" and friends alone.
+		Paths: []string{".gitconfig", ".gitconfig-*"},
 		Desc:  "git config and its per-directory includeIf overlays",
 	},
 	"ghostty": {
@@ -75,11 +78,6 @@ var configs = map[string]ConfigItem{
 		Paths:  []string{".config/gh"},
 		Secret: true,
 		Desc:   "GitHub CLI config — hosts.yml can hold an OAuth token",
-	},
-	"reftool": {
-		Paths:  []string{".reftool/config.json"},
-		Secret: true,
-		Desc:   "reference tool config — holds service tokens",
 	},
 	"claude": {
 		Paths:  []string{".claude.json", ".claude"},

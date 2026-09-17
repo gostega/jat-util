@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
 )
 
 // The multi-select used by both ends of `jat migrate`: on send to choose what
@@ -46,8 +47,8 @@ var (
 func runPicker(title, subtitle string, rows []PickRow) (ids []string, ok bool, err error) {
 	// Checked up front so a non-interactive run gets this rather than
 	// bubbletea's "could not open a new TTY: /dev/tty: device not configured".
-	if !isTerminal(os.Stdin) {
-		return nil, false, fmt.Errorf("%s needs a terminal — pass the flags to choose non-interactively", title)
+	if !stdinIsTerminal() {
+		return nil, false, fmt.Errorf("%s needs a terminal — use --all, or pass flags, to choose non-interactively", title)
 	}
 
 	out, err := tea.NewProgram(
@@ -72,9 +73,13 @@ func runPicker(title, subtitle string, rows []PickRow) (ids []string, ok bool, e
 	return ids, true, nil
 }
 
-func isTerminal(f *os.File) bool {
-	fi, err := f.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+// stdinIsTerminal reports whether there is a real terminal to read from.
+//
+// A mode check for os.ModeCharDevice is not enough: /dev/null is itself a
+// character device, so a command run with stdin redirected from it passes that
+// test and then dies inside bubbletea instead. This is an ioctl check.
+func stdinIsTerminal() bool {
+	return isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
 }
 
 type pickModel struct {
