@@ -19,8 +19,26 @@ var transports = []string{"file", "1password"}
 
 func cmdMigrate(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: jat migrate <send|receive> [flags]")
+		// Bare `jat migrate` asks which direction, but only when there is a
+		// terminal to ask on — scripts get the usage message instead.
+		if !stdinIsTerminal() {
+			return fmt.Errorf("usage: jat migrate <send|receive> [flags]")
+		}
+		mode, ok, err := runPickerOne("What do you want to do?", "",
+			[]PickRow{
+				{ID: "send", Label: "Send", Note: "package this machine's config for another one"},
+				{ID: "receive", Label: "Receive", Note: "apply a bundle onto this machine"},
+			})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			fmt.Fprintln(os.Stderr, "Cancelled.")
+			return nil
+		}
+		args = []string{mode}
 	}
+
 	switch args[0] {
 	case "send":
 		return migrateSend(args[1:])
@@ -39,8 +57,25 @@ func migrateSend(args []string) error {
 	all := fs.Bool("all", false, "skip the picker and send everything available")
 	fs.Parse(flagsFirst(args))
 
+	// No --transport: ask, unless there is nothing to ask on.
 	if *transport == "" {
-		*transport = "file"
+		if !stdinIsTerminal() {
+			*transport = "file"
+		} else {
+			choice, ok, err := runPickerOne("How should it travel?", "",
+				[]PickRow{
+					{ID: "file", Label: "File", Note: "a bundle you move yourself — AirDrop, USB, scp"},
+					{ID: "1password", Label: "1Password", Note: "stored as a document in your private vault"},
+				})
+			if err != nil {
+				return err
+			}
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Cancelled.")
+				return nil
+			}
+			*transport = choice
+		}
 	}
 	if !slices.Contains(transports, *transport) {
 		return fmt.Errorf("unknown transport %q (want %s)", *transport, strings.Join(transports, " or "))

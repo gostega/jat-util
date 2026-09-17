@@ -57,14 +57,14 @@ func selectedIDs(m *pickModel) []string {
 }
 
 func TestPickerInitialSelection(t *testing.T) {
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	if got := selectedIDs(m); len(got) != 1 || got[0] != "ghostty" {
 		t.Errorf("initial selection = %v, want [ghostty]", got)
 	}
 }
 
 func TestPickerToggleAndConfirm(t *testing.T) {
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	m = send(m, " ")         // toggle bash on (cursor starts at row 0)
 	m = send(m, "down", " ") // toggle ghostty off
 	m = send(m, "enter")
@@ -81,7 +81,7 @@ func TestPickerToggleAndConfirm(t *testing.T) {
 func TestPickerFilterThenToggle(t *testing.T) {
 	// Space must still select while filtering — that's the whole point of
 	// type-to-filter with no leading '/'.
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	m = send(m, "m", "i")
 	if len(m.visible) != 1 || m.visible[0].ID != "mise" {
 		t.Fatalf("filter 'mi' gave %d rows, want just mise", len(m.visible))
@@ -106,7 +106,7 @@ func TestPickerFilterThenToggle(t *testing.T) {
 
 func TestPickerFilterMatchesNote(t *testing.T) {
 	// Filtering on the annotation is how you'd grab every 'differs' row.
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	m = send(m, "d", "i", "f")
 	if len(m.visible) != 1 || m.visible[0].ID != "ghostty" {
 		t.Errorf("filter 'dif' gave %v, want [ghostty]", m.visible)
@@ -116,7 +116,7 @@ func TestPickerFilterMatchesNote(t *testing.T) {
 func TestPickerSelectAllAppliesToVisibleOnly(t *testing.T) {
 	// ctrl+a must not reach rows the filter is hiding, or it silently selects
 	// things the user cannot see.
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	m = send(m, "ctrl+n") // clear the preselected ghostty
 	m = send(m, "z", "z")
 	if len(m.visible) != 0 {
@@ -131,7 +131,7 @@ func TestPickerSelectAllAppliesToVisibleOnly(t *testing.T) {
 func TestPickerCursorStaysInRange(t *testing.T) {
 	// Filtering down to fewer rows than the cursor index must not leave the
 	// cursor pointing off the end.
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	m = send(m, "down", "down", "down") // cursor at 3
 	m = send(m, "m", "i")               // one row left
 	if m.cursor >= len(m.visible) {
@@ -144,7 +144,7 @@ func TestPickerCursorStaysInRange(t *testing.T) {
 }
 
 func TestPickerCancelReturnsNothing(t *testing.T) {
-	m := newPickModel("t", "", testRows())
+	m := newPickModel("t", "", testRows(), false)
 	m = send(m, " ", "esc")
 	if m.confirmed {
 		t.Error("esc on an empty filter should not confirm")
@@ -153,11 +153,45 @@ func TestPickerCancelReturnsNothing(t *testing.T) {
 
 func TestPickerViewRendersWithoutSize(t *testing.T) {
 	// No WindowSizeMsg yet: listRows must not return 0 and hide every row.
-	m := newPickModel("Which configs?", "sub", testRows())
+	m := newPickModel("Which configs?", "sub", testRows(), false)
 	out := m.View()
 	for _, want := range []string{"Which configs?", "sub", "bash", "differs", "1 of 4 selected"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("view missing %q", want)
 		}
+	}
+}
+
+func TestPickerSingleMode(t *testing.T) {
+	rows := []PickRow{
+		{ID: "send", Label: "Send", Note: "package config"},
+		{ID: "receive", Label: "Receive", Note: "apply a bundle"},
+	}
+
+	// Enter with nothing touched takes the row under the cursor, so a wizard
+	// question is one keypress rather than two.
+	m := newPickModel("dir?", "", rows, true)
+	m = send(m, "enter")
+	if got := selectedIDs(m); len(got) != 1 || got[0] != "send" {
+		t.Errorf("bare enter chose %v, want [send]", got)
+	}
+
+	// Moving then choosing replaces rather than accumulating.
+	m = newPickModel("dir?", "", rows, true)
+	m = send(m, " ", "down", " ")
+	if got := selectedIDs(m); len(got) != 1 || got[0] != "receive" {
+		t.Errorf("single select accumulated: %v, want [receive]", got)
+	}
+
+	// ctrl+a must not turn a single-choice question into a multi-select.
+	m = newPickModel("dir?", "", rows, true)
+	m = send(m, "ctrl+a")
+	if len(m.selected) > 1 {
+		t.Errorf("ctrl+a selected %d rows in single mode", len(m.selected))
+	}
+
+	// No checkbox glyphs in single mode; the cursor carries the choice.
+	if out := m.View(); strings.Contains(out, "✓") || strings.Contains(out, "•") {
+		t.Error("single mode rendered a checkbox")
 	}
 }

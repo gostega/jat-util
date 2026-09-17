@@ -42,9 +42,23 @@ var (
 	pickOn  = pickStyle.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#111111", Dark: "#dddddd"}).Bold(true)
 )
 
+// runPickerOne is the single-choice variant, for wizard questions rather than
+// selections. Returns the chosen row's ID.
+func runPickerOne(title, subtitle string, rows []PickRow) (id string, ok bool, err error) {
+	ids, ok, err := runPickerMode(title, subtitle, rows, true)
+	if err != nil || !ok || len(ids) == 0 {
+		return "", false, err
+	}
+	return ids[0], true, nil
+}
+
 // runPicker blocks until enter or abort. ok is false when the user cancelled;
 // ids come back in the order the rows were passed in, not selection order.
 func runPicker(title, subtitle string, rows []PickRow) (ids []string, ok bool, err error) {
+	return runPickerMode(title, subtitle, rows, false)
+}
+
+func runPickerMode(title, subtitle string, rows []PickRow, single bool) (ids []string, ok bool, err error) {
 	// Checked up front so a non-interactive run gets this rather than
 	// bubbletea's "could not open a new TTY: /dev/tty: device not configured".
 	if !stdinIsTerminal() {
@@ -52,7 +66,7 @@ func runPicker(title, subtitle string, rows []PickRow) (ids []string, ok bool, e
 	}
 
 	out, err := tea.NewProgram(
-		newPickModel(title, subtitle, rows),
+		newPickModel(title, subtitle, rows, single),
 		tea.WithAltScreen(),
 		// stderr, so stdout stays clean for anything being piped or captured.
 		tea.WithOutput(os.Stderr),
@@ -90,14 +104,16 @@ type pickModel struct {
 	filter          string
 	cursor          int
 	height          int
+	single          bool
 	confirmed       bool
 }
 
-func newPickModel(title, subtitle string, rows []PickRow) *pickModel {
+func newPickModel(title, subtitle string, rows []PickRow, single bool) *pickModel {
 	m := &pickModel{
 		title:    title,
 		subtitle: subtitle,
 		rows:     rows,
+		single:   single,
 		selected: map[string]bool{},
 	}
 	for _, r := range rows {
@@ -121,6 +137,19 @@ func (m *pickModel) recompute() {
 	if m.cursor >= len(m.visible) {
 		m.cursor = max(0, len(m.visible)-1)
 	}
+}
+
+func (m *pickModel) toggle(id string) {
+	if m.selected[id] {
+		delete(m.selected, id)
+		return
+	}
+	if m.single {
+		// Choosing replaces rather than refusing, so a mis-hit needs no
+		// separate deselect step.
+		m.selected = map[string]bool{}
+	}
+	m.selected[id] = true
 }
 
 func (m *pickModel) Init() tea.Cmd { return nil }
@@ -154,23 +183,27 @@ func (m *pickModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case " ":
 			if len(m.visible) > 0 {
-				id := m.visible[m.cursor].ID
-				if m.selected[id] {
-					delete(m.selected, id)
-				} else {
-					m.selected[id] = true
-				}
+				m.toggle(m.visible[m.cursor].ID)
 			}
 		// Letters all go to the filter, so select-all/none need modifiers.
 		case "ctrl+a":
-			for _, r := range m.visible {
-				m.selected[r.ID] = true
+			if !m.single {
+				for _, r := range m.visible {
+					m.selected[r.ID] = true
+				}
 			}
 		case "ctrl+n":
-			for _, r := range m.visible {
-				delete(m.selected, r.ID)
+			if !m.single {
+				for _, r := range m.visible {
+					delete(m.selected, r.ID)
+				}
 			}
 		case "enter":
+			// In single mode the cursor IS the choice, so enter takes the row
+			// under it rather than demanding a space press first.
+			if m.single && len(m.selected) == 0 && len(m.visible) > 0 {
+				m.toggle(m.visible[m.cursor].ID)
+			}
 			m.confirmed = true
 			return m, tea.Quit
 		case "backspace":
@@ -216,7 +249,11 @@ func (m *pickModel) View() string {
 	if m.subtitle != "" {
 		b.WriteString("  " + pickDim.Render(m.subtitle) + "\n")
 	}
-	b.WriteString("\n  " + pickDim.Render(fmt.Sprintf("%d of %d selected", len(m.selected), len(m.rows))) + "\n\n")
+	if m.single {
+		b.WriteString("\n")
+	} else {
+		b.WriteString("\n  " + pickDim.Render(fmt.Sprintf("%d of %d selected", len(m.selected), len(m.rows))) + "\n\n")
+	}
 
 	if m.filter != "" {
 		b.WriteString(fmt.Sprintf("  filter: %s\n\n", m.filter))
@@ -247,14 +284,19 @@ func (m *pickModel) View() string {
 		if i == m.cursor {
 			cursor = pickMark.Render("❯ ")
 		}
-		check := pickDim.Render("•") + " "
-		if m.selected[r.ID] {
-			check = pickMark.Render("✓") + " "
+		// Single-select has nothing to accumulate, so the cursor alone says
+		// what is chosen — a checkbox would only imply a space press is needed.
+		check := ""
+		if !m.single {
+			check = pickDim.Render("•") + " "
+			if m.selected[r.ID] {
+				check = pickMark.Render("✓") + " "
+			}
 		}
 		// The row itself carries the selection, not just its tick: scanning a
 		// long list for ticks is harder than scanning it for bright text.
 		style := pickOff
-		if m.selected[r.ID] {
+		if m.selected[r.ID] || (m.single && i == m.cursor) {
 			style = pickOn
 		}
 		if r.Note == "" {
@@ -275,7 +317,11 @@ func (m *pickModel) View() string {
 
 	// Two lines rather than one: the full set runs past 80 columns and wraps
 	// into a ragged second line on a standard terminal.
-	b.WriteString("\n" + pickDim.Render("  type to filter · ↑/↓ move · space toggle") + "\n")
-	b.WriteString(pickDim.Render("  ctrl+a all · ctrl+n none · enter confirm · esc/ctrl+c cancel") + "\n")
+	b.WriteString("\n" + pickDim.Render("  type to filter · ↑/↓ move") + "\n")
+	if m.single {
+		b.WriteString(pickDim.Render("  enter choose · esc/ctrl+c cancel") + "\n")
+	} else {
+		b.WriteString(pickDim.Render("  space toggle · ctrl+a all · ctrl+n none · enter confirm · esc/ctrl+c cancel") + "\n")
+	}
 	return b.String()
 }
