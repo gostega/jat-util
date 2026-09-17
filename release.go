@@ -89,6 +89,10 @@ func cmdRelease(args []string) error {
 		}
 	}
 
+	// Belt and braces: whatever led here, never try to move an existing tag.
+	if _, err := git("rev-parse", "-q", "--verify", "refs/tags/"+next); err == nil {
+		return fmt.Errorf("tag %s already exists locally — the release list and your tags disagree; check `gh release list --repo %s`", next, repo)
+	}
 	if _, err := git("tag", "-a", next, "-m", "Release "+next); err != nil {
 		return err
 	}

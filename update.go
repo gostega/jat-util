@@ -100,14 +100,21 @@ func downloadRelease(tag, dest string) error {
 func latestReleaseTag() (string, error) {
 	out, err := exec.Command("gh", "release", "view",
 		"--repo", repo, "--json", "tagName", "-q", ".tagName").CombinedOutput()
-	if err != nil {
-		if strings.Contains(string(out), "release not found") {
-			return "", nil
-		}
+	if err == nil {
+		return strings.TrimSpace(string(out)), nil
+	}
+	if !strings.Contains(string(out), "release not found") {
 		return "", fmt.Errorf("could not read the latest release for %s: %w: %s",
 			repo, err, strings.TrimSpace(string(out)))
 	}
-	return strings.TrimSpace(string(out)), nil
+	// "release not found" is also what gh says when it cannot see the repo at
+	// all — a switched `gh auth` account, say. Treating that as "no releases
+	// yet" would silently restart versioning from the first tag, so confirm
+	// the repo really is visible before believing it.
+	if vErr := exec.Command("gh", "repo", "view", repo, "--json", "name").Run(); vErr != nil {
+		return "", fmt.Errorf("cannot see %s — check `gh auth status`, the active account may not have access", repo)
+	}
+	return "", nil
 }
 
 // sameVersion compares ignoring a leading "v", since tags carry it and the
