@@ -41,4 +41,4 @@ jat-export-*.tar.gz
 
 # maintainer-local agent instructions and task tracking, not part of the project
 CLAUDE.local.md
-backlog/
+backlog
