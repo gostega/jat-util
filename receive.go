@@ -262,13 +262,15 @@ func describeCounts(it *bundleItem) string {
 	changed, added, same := it.counts()
 	var parts []string
 	if changed > 0 {
-		parts = append(parts, fmt.Sprintf("%d changed", changed))
+		parts = append(parts, fmt.Sprintf("%d would be overwritten", changed))
 	}
 	if added > 0 {
 		parts = append(parts, fmt.Sprintf("%d new", added))
 	}
-	if same > 0 {
+	if same > 0 && len(parts) > 0 {
 		parts = append(parts, fmt.Sprintf("%d identical", same))
+	} else if same > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s)", same))
 	}
 	return strings.Join(parts, ", ")
 }
@@ -388,8 +390,10 @@ func migrateReceive(args []string) error {
 			}
 		}
 	default:
+		// Short enough for 80 columns: the picker truncates, it does not wrap.
 		picked, ok, err := runPicker("What should land on this machine?",
-			header+" · differs means a local file would be overwritten", rows)
+			fmt.Sprintf("%s from %s as %s · %s", orUnknown(man.Key), orUnknown(man.Host),
+				orUnknown(man.User), man.Created.Format("2 Jan 2006 15:04")), rows)
 		if err != nil {
 			return err
 		}
