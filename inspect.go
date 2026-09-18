@@ -13,15 +13,25 @@ import (
 func migrateInspect(args []string) error {
 	fs_ := flag.NewFlagSet("migrate inspect", flag.ExitOnError)
 	listFiles := fs_.Bool("files", false, "list every path rather than summarising per item")
+	key := fs_.String("key", "", "inspect a migration waiting in the vault instead of a file")
 	fs_.Parse(flagsFirst(fs_, args))
-	if fs_.NArg() != 1 {
-		return fmt.Errorf("usage: jat migrate inspect <bundle.tar.gz> [--files]")
+	if (fs_.NArg() == 1) == (*key != "") {
+		return fmt.Errorf("usage: jat migrate inspect <bundle.tar.gz> | --key <key> [--files]")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	man, items, err := readBundle(fs_.Arg(0), home)
+	bundlePath := fs_.Arg(0)
+	if *key != "" {
+		path, cleanup, err := bundleFromVault(*key)
+		if err != nil || path == "" {
+			return err
+		}
+		defer cleanup()
+		bundlePath = path
+	}
+	man, items, err := readBundle(bundlePath, home)
 	if err != nil {
 		return err
 	}

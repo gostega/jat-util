@@ -324,10 +324,15 @@ func migrateReceive(args []string) error {
 	transport := fs_.String("transport", "", "how the bundle arrived: "+strings.Join(transports, ", "))
 	all := fs_.Bool("all", false, "skip the picker and apply everything that is not already identical")
 	show := fs_.Bool("show", false, "print what would be written without changing anything")
+	key := fs_.String("key", "", "for --transport 1password: which migration, when more than one is waiting")
 	fs_.Parse(flagsFirst(fs_, args))
 
 	if fs_.NArg() > 1 {
-		return fmt.Errorf("usage: jat migrate receive [<bundle.tar.gz>] [--transport file] [--all] [--show]")
+		return fmt.Errorf("usage: jat migrate receive [<bundle.tar.gz> | --transport 1password [--key <key>]] [--all] [--show]")
+	}
+	// A key only means something to the vault, so it says how the bundle travelled.
+	if *key != "" && *transport == "" && fs_.NArg() == 0 {
+		*transport = "1password"
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -359,11 +364,18 @@ func migrateReceive(args []string) error {
 	if !slices.Contains(transports, *transport) {
 		return fmt.Errorf("unknown transport %q (want %s)", *transport, strings.Join(transports, " or "))
 	}
-	if *transport == "1password" {
-		return fmt.Errorf("the 1password transport is not built yet — use --transport file")
-	}
-
 	bundlePath := fs_.Arg(0)
+	if *transport == "1password" {
+		if bundlePath != "" {
+			return fmt.Errorf("a bundle path and --transport 1password are two different sources — pick one")
+		}
+		path, cleanup, err := bundleFromVault(*key)
+		if err != nil || path == "" {
+			return err
+		}
+		defer cleanup()
+		bundlePath = path
+	}
 	if bundlePath == "" {
 		bundlePath, err = chooseBundle([]string{".", filepath.Join(home, "Downloads")})
 		if err != nil || bundlePath == "" {
@@ -441,6 +453,21 @@ func migrateReceive(args []string) error {
 	}
 	fmt.Printf("%s %d file(s) across %d item(s); %d item(s) already identical\n", verb, n, len(chosen), identical)
 	return nil
+}
+
+// bundleFromVault is the vault transport's whole job on receive: put the same
+// bytes on disk that the file transport would have been handed. An empty path
+// with no error means the person cancelled.
+func bundleFromVault(key string) (string, func(), error) {
+	vault, err := configuredVault()
+	if err != nil {
+		return "", nil, err
+	}
+	vb, ok, err := pickVaultBundle(vault, key)
+	if err != nil || !ok {
+		return "", nil, err
+	}
+	return fetchVaultBundle(vault, vb)
 }
 
 func describeManifest(man Manifest) string {

@@ -4,7 +4,7 @@ managing configs, moving between machines, and whatever other housekeeping
 jobs turn out to be worth a subcommand. Migration is one function among many.
 
 Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
-`inspect`), `update`, `release`, `version`.
+`inspect`), `vault`, `update`, `release`, `version`.
 
 ## ABOUT
 
@@ -42,3 +42,20 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
 - A bundle is treated as untrusted input: an entry that would land outside
   `$HOME` refuses the whole bundle before anything is written.
 - `inspect` never prints file contents.
+
+### Through 1Password instead of a file
+
+```sh
+jat vault set                          # once per machine: pick your private vault
+jat migrate send --transport 1password
+jat migrate receive --transport 1password [--key 7f3a]
+jat migrate inspect --key 7f3a
+```
+
+- The bundle is the same bytes either way; the vault only carries it, as a
+  document titled `jat/migrate/<key>/<host>/<user>` and tagged `jat-migrate`.
+- `jat vault set` checks the vault's type once and refuses anything that is not
+  your private vault, so a bundle can never land somewhere shared.
+- jat only ever opens documents carrying both its tag and its title pattern,
+  and it cannot run `op item get` or `op read` at all.
+- `--key` matters only when more than one migration is waiting.

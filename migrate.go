@@ -83,8 +83,18 @@ func migrateSend(args []string) error {
 	if !slices.Contains(transports, *transport) {
 		return fmt.Errorf("unknown transport %q (want %s)", *transport, strings.Join(transports, " or "))
 	}
-	if *transport == "1password" {
-		return fmt.Errorf("the 1password transport is not built yet — use --transport file")
+	// Checked before the picker, not after it: nobody should choose a dozen
+	// items and then learn there is nowhere to send them.
+	var vault VaultRef
+	if *transport == "1password" && !*show {
+		if *out != "" {
+			return fmt.Errorf("--out is for --transport file; the vault names its own document")
+		}
+		v, err := configuredVault()
+		if err != nil {
+			return err
+		}
+		vault = v
 	}
 
 	home, err := os.UserHomeDir()
@@ -148,6 +158,15 @@ func migrateSend(args []string) error {
 	if dest == "" {
 		dest = fmt.Sprintf("jat-migrate-%s.tar.gz", key)
 	}
+	if *transport == "1password" {
+		// Same bundle, written somewhere private and gone once it is filed.
+		dir, err := os.MkdirTemp("", "jat-send-")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(dir)
+		dest = filepath.Join(dir, dest)
+	}
 
 	man := Manifest{
 		Created: time.Now(),
@@ -160,7 +179,16 @@ func migrateSend(args []string) error {
 		return err
 	}
 
-	fmt.Printf("wrote %s\n", dest)
+	if *transport == "1password" {
+		title, err := sendVaultBundle(vault, dest, man)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("filed %s in vault %q\n", title, vault.Name)
+		fmt.Printf("  receive:  jat migrate receive --transport 1password --key %s\n", key)
+	} else {
+		fmt.Printf("wrote %s\n", dest)
+	}
 	fmt.Printf("  key:      %s\n", key)
 	fmt.Printf("  from:     %s (%s) as %s\n", man.Host, man.Profile, man.User)
 	fmt.Printf("  captured: %s\n", strings.Join(man.Captured, ", "))
