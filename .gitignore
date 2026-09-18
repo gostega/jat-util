@@ -38,3 +38,7 @@ bin/
 # bundles written by `jat migrate send` / `jat export`
 jat-migrate-*.tar.gz
 jat-export-*.tar.gz
+
+# maintainer-local agent instructions and task tracking, not part of the project
+CLAUDE.local.md
+backlog/
