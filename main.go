@@ -46,10 +46,6 @@ func main() {
 		err = cmdList(os.Args[2:])
 	case "migrate":
 		err = cmdMigrate(os.Args[2:])
-	case "export":
-		err = cmdExport(os.Args[2:])
-	case "import":
-		err = cmdImport(os.Args[2:])
 	case "update":
 		err = cmdUpdate(os.Args[2:])
 	case "release":
@@ -73,11 +69,12 @@ func usage() {
                                      save the OS profile and this machine's name
   jat install <tool> [--<method>] [--show]
   jat list                           known tools and their default method
-  jat migrate send [--transport file] [--out <file>] [--all] [--include-secrets]
+  jat migrate send [--transport file] [--out <file>] [--all] [--include-secrets] [--show]
                                      pick config and bundle it for another machine
-  jat export [--out <file>] [--include-secrets] [--show]
-                                     bundle known config for another machine
-  jat import <bundle> [--show] [--force]
+  jat migrate receive [<bundle>] [--all] [--show]
+                                     apply a bundle: absent / identical / differs per item
+  jat migrate inspect <bundle> [--files]
+                                     what a bundle holds, without applying it
   jat update [--check]               replace this binary with the latest release
   jat release [patch|minor|major]    tag and push a new release
   jat version

@@ -12,8 +12,8 @@ config files between machines, updates itself and cuts its own releases. New
 functions are added as subcommands; migration is one of them, not the point of
 the tool. See `README.md` for the user view.
 
-Subcommands live in `main.go`: `init`, `install`, `list`, `migrate`, `export`,
-`import`, `update`, `release`, `version`.
+Subcommands live in `main.go`: `init`, `install`, `list`, `migrate` (`send`,
+`receive`, `inspect`), `update`, `release`, `version`.
 
 ## Layout
 
@@ -23,9 +23,11 @@ Flat package `main`, one file per concern:
 |---|---|
 | `main.go` | entry point, subcommand dispatch, profile detection, version stamp |
 | `tools.go` | the tool → install-method table (seed data, curated by hand) |
-| `configs.go` | the curated list of config paths `export`/`migrate` may carry |
-| `transfer.go` | bundle format and the export/import serialiser |
-| `migrate.go` | the `migrate` wizard and its transports (file, 1password) |
+| `configs.go` | the curated list of config paths `migrate` may carry |
+| `transfer.go` | bundle format, the serialiser, and the entry-name guard |
+| `migrate.go` | the `migrate` wizard, `send`, and its transports (file, 1password) |
+| `receive.go` | `migrate receive`: classify a bundle against disk, then write what was ticked |
+| `inspect.go` | `migrate inspect`: a bundle's contents on stdout, never file contents |
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |
@@ -54,7 +56,7 @@ only for non-`rc` tags.
   `dev` was built from source and `jat update` deliberately will not replace it.
 - **Release asset names are a contract.** `assetName()` in `update.go` must
   match what the workflow uploads. Change both or neither.
-- **`configs.go` is a curated list, not a sweep.** Export only touches paths
+- **`configs.go` is a curated list, not a sweep.** Send only touches paths
   named there. Adding a path is a product decision; say why in the commit.
 - **Transports carry the bundle; they do not change it.** New transports go in
   `migrate.go` behind the same serialiser and picker. Do not fork the format.

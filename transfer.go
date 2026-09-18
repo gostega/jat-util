@@ -4,20 +4,18 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 )
 
 // Everything a bundle carries lives under this prefix, which keeps the
-// manifest from colliding with a real dotfile and gives import one thing to
+// manifest from colliding with a real dotfile and gives receive one thing to
 // check every entry against.
 const bundlePrefix = "home/"
 
@@ -57,7 +55,7 @@ func expandPaths(home string, patterns []string) []string {
 }
 
 // writeBundle tars the named config items into dest and appends the manifest.
-// Shared by export and migrate send so there is exactly one bundle format.
+// Every transport sends this same bundle, so there is exactly one format.
 func writeBundle(dest, home string, names []string, man *Manifest) error {
 	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -84,62 +82,6 @@ func writeBundle(dest, home string, names []string, man *Manifest) error {
 		man.Captured = append(man.Captured, name)
 	}
 	return writeManifest(tw, *man)
-}
-
-func cmdExport(args []string) error {
-	fs_ := flag.NewFlagSet("export", flag.ExitOnError)
-	out := fs_.String("out", "", "bundle to write (default: jat-export-<host>-<date>.tar.gz)")
-	withSecrets := fs_.Bool("include-secrets", false, "also export keys, tokens and credentials")
-	show := fs_.Bool("show", false, "list what would be exported without writing anything")
-	fs_.Parse(flagsFirst(fs_, args))
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	cfg, err := loadConfig()
-	if err != nil {
-		return err
-	}
-
-	man := Manifest{Created: time.Now(), Host: cfg.Host, Profile: cfg.Profile, User: osUsername()}
-
-	var names []string
-	for _, name := range slices.Sorted(maps(configs)) {
-		if configs[name].Secret && !*withSecrets {
-			man.Skipped = append(man.Skipped, name+" (secret; --include-secrets to add)")
-			continue
-		}
-		names = append(names, name)
-	}
-
-	if *show {
-		fmt.Printf("would export from %s (host %s):\n", home, cfg.Host)
-		for _, name := range names {
-			for _, rel := range expandPaths(home, configs[name].Paths) {
-				fmt.Printf("  %-18s %s\n", name, rel)
-			}
-		}
-		fmt.Println("\nskipped:")
-		for _, s := range man.Skipped {
-			fmt.Printf("  %s\n", s)
-		}
-		return nil
-	}
-
-	dest := *out
-	if dest == "" {
-		dest = fmt.Sprintf("jat-export-%s-%s.tar.gz", cfg.Host, time.Now().Format("2006-01-02"))
-	}
-	if err := writeBundle(dest, home, names, &man); err != nil {
-		return err
-	}
-
-	fmt.Printf("wrote %s\n  captured: %s\n", dest, strings.Join(man.Captured, ", "))
-	if !*withSecrets {
-		fmt.Println("  secrets were excluded — pass --include-secrets if you want them")
-	}
-	return nil
 }
 
 // addPath walks rel (a file or a directory) and writes every regular file
@@ -201,93 +143,6 @@ func writeManifest(tw *tar.Writer, man Manifest) error {
 	}
 	_, err = tw.Write(b)
 	return err
-}
-
-func cmdImport(args []string) error {
-	fs_ := flag.NewFlagSet("import", flag.ExitOnError)
-	show := fs_.Bool("show", false, "list what would be written without changing anything")
-	force := fs_.Bool("force", false, "overwrite files that already exist")
-	fs_.Parse(flagsFirst(fs_, args))
-
-	if fs_.NArg() != 1 {
-		return fmt.Errorf("usage: jat import <bundle.tar.gz> [--show] [--force]")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Open(fs_.Arg(0))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("%s is not a gzip bundle: %w", fs_.Arg(0), err)
-	}
-	defer gz.Close()
-
-	tr := tar.NewReader(gz)
-	var written, skipped int
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if hdr.Name == "manifest.json" {
-			var man Manifest
-			if json.NewDecoder(tr).Decode(&man) == nil {
-				fmt.Printf("bundle from host %q (%s), created %s\n",
-					man.Host, man.Profile, man.Created.Format(time.RFC3339))
-			}
-			continue
-		}
-		if !hdr.FileInfo().Mode().IsRegular() {
-			continue
-		}
-
-		rel, err := bundleRel(hdr.Name)
-		if err != nil {
-			return fmt.Errorf("refusing bundle: %w", err)
-		}
-		dest := filepath.Join(home, rel)
-
-		if _, err := os.Lstat(dest); err == nil && !*force {
-			fmt.Printf("  skip   %s (exists; --force to overwrite)\n", rel)
-			skipped++
-			continue
-		}
-		if *show {
-			fmt.Printf("  write  %s\n", rel)
-			written++
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return err
-		}
-		out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(out, tr); err != nil {
-			out.Close()
-			return err
-		}
-		out.Close()
-		fmt.Printf("  write  %s\n", rel)
-		written++
-	}
-
-	verb := "wrote"
-	if *show {
-		verb = "would write"
-	}
-	fmt.Printf("%s %d file(s), skipped %d\n", verb, written, skipped)
-	return nil
 }
 
 // bundleRel validates a tar entry name and returns its path relative to $HOME.

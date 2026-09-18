@@ -57,6 +57,7 @@ func migrateSend(args []string) error {
 	out := fs.String("out", "", "for --transport file: where to write (default: ./jat-migrate-<key>.tar.gz)")
 	withSecrets := fs.Bool("include-secrets", false, "offer keys, tokens and credentials as well")
 	all := fs.Bool("all", false, "skip the picker and send everything available")
+	show := fs.Bool("show", false, "list what would be bundled without writing anything")
 	fs.Parse(flagsFirst(fs, args))
 
 	// No --transport: ask, unless there is nothing to ask on.
@@ -127,6 +128,16 @@ func migrateSend(args []string) error {
 			return nil
 		}
 		chosen = picked
+	}
+
+	if *show {
+		fmt.Printf("would send from %s (host %s):\n", home, cfg.Host)
+		for _, name := range chosen {
+			for _, rel := range expandPaths(home, configs[name].Paths) {
+				fmt.Printf("  %-18s %s\n", name, rel)
+			}
+		}
+		return nil
 	}
 
 	key, err := migrationKey()

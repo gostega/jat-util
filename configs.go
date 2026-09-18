@@ -2,7 +2,7 @@ package main
 
 // Config items jat knows how to carry between machines. Paths are relative to
 // $HOME. This is a curated list, not a sweep of the home directory — if it
-// isn't named here, export won't touch it.
+// isn't named here, migrate won't touch it.
 //
 // Secret items hold credentials, tokens or private keys. They are excluded
 // unless --include-secrets is passed, so the safe thing happens by default and
