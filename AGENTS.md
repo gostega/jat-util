@@ -13,7 +13,7 @@ functions are added as subcommands; migration is one of them, not the point of
 the tool. See `README.md` for the user view.
 
 Subcommands live in `main.go`: `init`, `install`, `list`, `migrate` (`send`,
-`receive`, `inspect`), `vault`, `update`, `release`, `version`.
+`receive`, `inspect`, `cleanup`), `vault`, `update`, `release`, `version`.
 
 ## Layout
 
@@ -27,6 +27,7 @@ Flat package `main`, one file per concern:
 | `transfer.go` | bundle format, the serialiser, and the entry-name guard |
 | `migrate.go` | the `migrate` wizard, `send`, and its transports (file, 1password) |
 | `receive.go` | `migrate receive`: classify a bundle against disk, then write what was ticked |
+| `cleanup.go` | backups of overwritten files, their log, and `migrate cleanup` |
 | `inspect.go` | `migrate inspect`: a bundle's contents on stdout, never file contents |
 | `vault.go` | the private vault: choosing it, the `op` allowlist, and the tag-and-title scope rules |
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate |

@@ -101,6 +101,13 @@ func addPath(tw *tar.Writer, home, rel string, man *Manifest) error {
 			}
 			return nil
 		}
+		// A backup receive left behind is this machine's history, not config:
+		// .gitconfig-personal.pre-jat-7f3a matches the git glob, and one inside
+		// ~/.config/karabiner would ride along with the directory.
+		if isBackupName(p) {
+			man.Skipped = append(man.Skipped, relOf(home, p)+" (a jat backup)")
+			return nil
+		}
 		info, err := d.Info()
 		if err != nil {
 			return err

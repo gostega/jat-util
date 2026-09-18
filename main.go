@@ -81,6 +81,8 @@ func usage() {
                                      apply a bundle: absent / identical / differs per item
   jat migrate inspect <bundle> | --key <key> [--files]
                                      what a bundle holds, without applying it
+  jat migrate cleanup [<key>] [--show] [--yes]
+                                     delete the backups a receive left behind
   jat vault [set [<name or id>]]     the private 1Password vault jat may use
   jat update [--check]               replace this binary with the latest release
   jat release [patch|minor|major]    tag and push a new release

@@ -275,9 +275,10 @@ func describeCounts(it *bundleItem) string {
 	return strings.Join(parts, ", ")
 }
 
-// applyBundle writes the wanted paths and nothing else. With dry set it
+// applyBundle writes the wanted paths and nothing else. A file it is about to
+// overwrite is copied beside itself first (see cleanup.go). With dry set it
 // prints exactly the lines a real run would and touches nothing.
-func applyBundle(bundlePath, home string, want map[string]string, dry bool, out io.Writer) (int, error) {
+func applyBundle(bundlePath, home, key string, want map[string]string, dry bool, out io.Writer) (int, error) {
 	written := 0
 	_, err := walkBundle(bundlePath, func(rel string, hdr *tar.Header, r io.Reader) error {
 		state, ok := want[rel]
@@ -286,7 +287,7 @@ func applyBundle(bundlePath, home string, want map[string]string, dry bool, out 
 		}
 		suffix := ""
 		if state == stateDiffers {
-			suffix = "  (overwrites)"
+			suffix = "  (overwrites; keeps " + path.Base(rel) + backupSuffix(key) + ")"
 		}
 		fmt.Fprintf(out, "  write  %s%s\n", rel, suffix)
 		written++
@@ -295,6 +296,11 @@ func applyBundle(bundlePath, home string, want map[string]string, dry bool, out 
 		}
 
 		dest := filepath.Join(home, rel)
+		if state == stateDiffers {
+			if err := backupBeforeOverwrite(home, rel, key); err != nil {
+				return fmt.Errorf("could not back up %s, so it was not overwritten: %w", rel, err)
+			}
+		}
 		mode := hdr.FileInfo().Mode().Perm()
 		// The bundle carries no directory entries, so a parent's mode is
 		// inferred: a file nobody else may read does not get a world-listable
@@ -428,6 +434,7 @@ func migrateReceive(args []string) error {
 	// Identical files inside a chosen item are left alone: rewriting them
 	// changes nothing but their mtime.
 	want := map[string]string{}
+	overwrites := false
 	for _, it := range items {
 		if !slices.Contains(chosen, it.Name) {
 			continue
@@ -435,6 +442,7 @@ func migrateReceive(args []string) error {
 		for _, f := range it.Files {
 			if f.State != stateIdentical {
 				want[f.Rel] = f.State
+				overwrites = overwrites || f.State == stateDiffers
 			}
 		}
 	}
@@ -447,11 +455,15 @@ func migrateReceive(args []string) error {
 	if *show {
 		verb = "would write"
 	}
-	n, err := applyBundle(bundlePath, home, want, *show, os.Stdout)
+	n, err := applyBundle(bundlePath, home, man.Key, want, *show, os.Stdout)
 	if err != nil {
 		return fmt.Errorf("stopped after %d file(s): %w", n, err)
 	}
 	fmt.Printf("%s %d file(s) across %d item(s); %d item(s) already identical\n", verb, n, len(chosen), identical)
+	if !*show && overwrites {
+		fmt.Printf("overwritten files are kept as *%s — when you are happy: jat migrate cleanup %s\n",
+			backupSuffix(man.Key), backupKey(man.Key))
+	}
 	return nil
 }
 

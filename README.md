@@ -4,7 +4,7 @@ managing configs, moving between machines, and whatever other housekeeping
 jobs turn out to be worth a subcommand. Migration is one function among many.
 
 Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
-`inspect`), `vault`, `update`, `release`, `version`.
+`inspect`, `cleanup`), `vault`, `update`, `release`, `version`.
 
 ## ABOUT
 
@@ -42,6 +42,10 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
 - A bundle is treated as untrusted input: an entry that would land outside
   `$HOME` refuses the whole bundle before anything is written.
 - `inspect` never prints file contents.
+- A file `receive` overwrites is kept beside it as `<name>.pre-jat-<key>`. When
+  you are happy with the result, `jat migrate cleanup <key> --show` lists those
+  backups and `jat migrate cleanup <key>` deletes them after asking. `send`
+  never bundles them.
 
 ### Through 1Password instead of a file
 

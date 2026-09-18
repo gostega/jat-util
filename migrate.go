@@ -22,7 +22,7 @@ func cmdMigrate(args []string) error {
 		// Bare `jat migrate` asks which direction, but only when there is a
 		// terminal to ask on — scripts get the usage message instead.
 		if !stdinIsTerminal() {
-			return fmt.Errorf("usage: jat migrate <send|receive|inspect> [flags]")
+			return fmt.Errorf("usage: jat migrate <send|receive|inspect|cleanup> [flags]")
 		}
 		mode, ok, err := runPickerOne("What do you want to do?", "",
 			[]PickRow{
@@ -46,8 +46,10 @@ func cmdMigrate(args []string) error {
 		return migrateReceive(args[1:])
 	case "inspect":
 		return migrateInspect(args[1:])
+	case "cleanup":
+		return migrateCleanup(args[1:])
 	default:
-		return fmt.Errorf("unknown migrate subcommand %q (want send, receive or inspect)", args[0])
+		return fmt.Errorf("unknown migrate subcommand %q (want send, receive, inspect or cleanup)", args[0])
 	}
 }
 

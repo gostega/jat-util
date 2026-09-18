@@ -137,7 +137,7 @@ func TestApplyBundleWritesOnlyWhatWasAskedFor(t *testing.T) {
 	})
 
 	// --show first: same lines, nothing on disk.
-	n, err := applyBundle(b, home, map[string]string{".gitconfig": stateAbsent}, true, io.Discard)
+	n, err := applyBundle(b, home, "7f3a", map[string]string{".gitconfig": stateAbsent}, true, io.Discard)
 	if err != nil || n != 1 {
 		t.Fatalf("dry run: n=%d err=%v", n, err)
 	}
@@ -145,7 +145,7 @@ func TestApplyBundleWritesOnlyWhatWasAskedFor(t *testing.T) {
 		t.Fatal("--show wrote a file")
 	}
 
-	if _, err := applyBundle(b, home, map[string]string{".gitconfig": stateAbsent}, false, io.Discard); err != nil {
+	if _, err := applyBundle(b, home, "7f3a", map[string]string{".gitconfig": stateAbsent}, false, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(home, ".gitconfig")); string(got) != "new" {
@@ -168,7 +168,7 @@ func TestApplyBundlePrivateFilesGetPrivateDirs(t *testing.T) {
 	gz.Close()
 	f.Close()
 
-	if _, err := applyBundle(dest, home, map[string]string{".ssh/id_test": stateAbsent}, false, io.Discard); err != nil {
+	if _, err := applyBundle(dest, home, "7f3a", map[string]string{".ssh/id_test": stateAbsent}, false, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(filepath.Join(home, ".ssh"))
@@ -197,7 +197,7 @@ func TestHostileBundleWritesNothing(t *testing.T) {
 		t.Error("readBundle accepted a traversing entry")
 	}
 	want := map[string]string{".aaa-honest": stateAbsent, "../evil": stateAbsent, "evil": stateAbsent}
-	if _, err := applyBundle(b, home, want, false, io.Discard); err == nil {
+	if _, err := applyBundle(b, home, "7f3a", want, false, io.Discard); err == nil {
 		t.Error("applyBundle accepted a traversing entry")
 	}
 	for _, p := range []string{filepath.Join(root, "evil"), "/tmp/jat-evil-test"} {
