@@ -1,5 +1,10 @@
 # jat-util
-General helper utility for installs, configs.
+`jat` is a general-purpose machine utility: one binary for installing tools,
+managing configs, moving between machines, and whatever other housekeeping
+jobs turn out to be worth a subcommand. Migration is one function among many.
+
+Current subcommands: `init`, `install`, `list`, `migrate`, `export`, `import`,
+`update`, `release`, `version`.
 
 ## ABOUT
 

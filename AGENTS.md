@@ -73,6 +73,27 @@ only for non-`rc` tags.
   bump the patch.
 - Never push, force-push, tag remotely or delete remotely unless asked.
 
+### Changelog via git trailers
+
+`CHANGELOG.md` is assembled from commit trailers, never harvested from the
+whole log. A commit opts in by carrying trailers in its **final paragraph**
+(the same block as `Co-Authored-By`; git only parses the last paragraph as
+trailers, so a blank line above them silently turns them into prose):
+
+| Trailer | Value | When |
+|---|---|---|
+| `Changelog:` | `added` · `changed` · `fixed` · `removed` · `security` | the commit changed something a user would notice |
+| `Release-Note:` | one user-facing sentence | the subject is internal shorthand; this overrides it |
+| `Upgrade:` | what a promotion must do | on the commit that causes it |
+
+No `Changelog:` trailer, no changelog line. Every release entry ends with an
+`Upgrade:` line, even when it is `Upgrade: nothing to do`; a missing line means
+the entry is unfinished, not that nothing changed. Second view without tooling:
+
+```sh
+git shortlog --group=trailer:changelog --format=reference <last-tag>..HEAD
+```
+
 ## Local, uncommitted files
 
 `CLAUDE.local.md` and `backlog/` are gitignored. They hold the maintainer's
