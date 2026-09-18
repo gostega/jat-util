@@ -13,7 +13,7 @@ functions are added as subcommands; migration is one of them, not the point of
 the tool. See `README.md` for the user view.
 
 Subcommands live in `main.go`: `init`, `install`, `list`, `migrate` (`send`,
-`receive`, `inspect`), `update`, `release`, `version`.
+`receive`, `inspect`), `vault`, `update`, `release`, `version`.
 
 ## Layout
 
@@ -28,6 +28,7 @@ Flat package `main`, one file per concern:
 | `migrate.go` | the `migrate` wizard, `send`, and its transports (file, 1password) |
 | `receive.go` | `migrate receive`: classify a bundle against disk, then write what was ticked |
 | `inspect.go` | `migrate inspect`: a bundle's contents on stdout, never file contents |
+| `vault.go` | the private vault: choosing it, the `op` allowlist, and the tag-and-title scope rules |
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |
@@ -60,6 +61,11 @@ only for non-`rc` tags.
   named there. Adding a path is a product decision; say why in the commit.
 - **Transports carry the bundle; they do not change it.** New transports go in
   `migrate.go` behind the same serialiser and picker. Do not fork the format.
+- **The vault scope rules live in code, in `vault.go`.** `op` runs only through
+  `opRun` and its allowlist; nothing that returns an item's field value is on
+  it. jat reads only items carrying its tag *and* its title pattern, in the
+  configured vault. Do not add a title-search fallback, and do not widen the
+  allowlist without saying why in the commit.
 - **Prerelease tags (`-rcN`) build but never publish.** Cutting a release is a
   deliberate act; do not automate it away.
 - **`--show` must always be a faithful dry run.** Whatever `install` would
