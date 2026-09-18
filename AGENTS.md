@@ -5,9 +5,12 @@ is a symlink to this file.
 
 ## What this is
 
-`jat` is a single-binary Go CLI for setting up and moving between machines:
-installing tools by a per-profile default method, and carrying a curated set
-of config files from one machine to another. See `README.md` for the user view.
+`jat` is a single-binary Go CLI: a general helper utility for installs,
+configs and everyday machine housekeeping. Today it installs tools by a
+per-profile default method, lists what it knows, carries a curated set of
+config files between machines, updates itself and cuts its own releases. New
+functions are added as subcommands; migration is one of them, not the point of
+the tool. See `README.md` for the user view.
 
 Subcommands live in `main.go`: `init`, `install`, `list`, `migrate`, `export`,
 `import`, `update`, `release`, `version`.
