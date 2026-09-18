@@ -43,7 +43,7 @@ func cmdMigrate(args []string) error {
 	case "send":
 		return migrateSend(args[1:])
 	case "receive":
-		return fmt.Errorf("jat migrate receive is not built yet — use `jat import <bundle>` for now")
+		return migrateReceive(args[1:])
 	default:
 		return fmt.Errorf("unknown migrate subcommand %q (want send or receive)", args[0])
 	}
