@@ -18,7 +18,7 @@ func cmdRelease(args []string) error {
 	fs := flag.NewFlagSet("release", flag.ExitOnError)
 	remote := fs.String("remote", "origin", "git remote to push the tag to")
 	yes := fs.Bool("yes", false, "skip the confirmation prompt")
-	fs.Parse(flagsFirst(args))
+	fs.Parse(flagsFirst(fs, args))
 
 	bump := "patch"
 	if fs.NArg() > 1 {

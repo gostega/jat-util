@@ -122,7 +122,7 @@ func cmdInstall(args []string) error {
 	for _, m := range allMethods {
 		fs.BoolFunc(m, "force install via "+m, func(string) error { override = m; return nil })
 	}
-	fs.Parse(flagsFirst(args))
+	fs.Parse(flagsFirst(fs, args))
 
 	if fs.NArg() != 1 {
 		return errors.New("usage: jat install <tool> [--<method>] [--show]")
@@ -211,19 +211,38 @@ func resolve(t Tool, profile, override string) (method, cmd string, err error) {
 }
 
 // flagsFirst reorders args so stdlib flag sees every flag, which it otherwise
-// stops doing at the first positional ("jat install gh --show").
-// ponytail: safe only because every install flag is boolean; a flag taking a
-// separate value would need pflag instead.
-func flagsFirst(args []string) []string {
+// stops doing at the first positional ("jat install gh --show"). A flag that
+// takes a value keeps the argument after it: hoisting "--transport" away from
+// "file" handed the next flag to it as a value instead.
+func flagsFirst(fs *flag.FlagSet, args []string) []string {
 	var flags, positional []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			flags = append(flags, a)
-		} else {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			// Kept, so a positional that starts with "-" stays one.
+			positional = append(positional, args[i:]...)
+			break
+		}
+		if !strings.HasPrefix(a, "-") || a == "-" {
 			positional = append(positional, a)
+			continue
+		}
+		flags = append(flags, a)
+		name, _, inline := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if inline || i+1 >= len(args) {
+			continue
+		}
+		if f := fs.Lookup(name); f != nil && !isBoolFlag(f) {
+			i++
+			flags = append(flags, args[i])
 		}
 	}
 	return append(flags, positional...)
+}
+
+func isBoolFlag(f *flag.Flag) bool {
+	b, ok := f.Value.(interface{ IsBoolFlag() bool })
+	return ok && b.IsBoolFlag()
 }
 
 // slugHost reduces a host name to [a-z0-9-]. The value ends up as a path

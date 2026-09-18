@@ -91,7 +91,7 @@ func cmdExport(args []string) error {
 	out := fs_.String("out", "", "bundle to write (default: jat-export-<host>-<date>.tar.gz)")
 	withSecrets := fs_.Bool("include-secrets", false, "also export keys, tokens and credentials")
 	show := fs_.Bool("show", false, "list what would be exported without writing anything")
-	fs_.Parse(flagsFirst(args))
+	fs_.Parse(flagsFirst(fs_, args))
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -207,7 +207,7 @@ func cmdImport(args []string) error {
 	fs_ := flag.NewFlagSet("import", flag.ExitOnError)
 	show := fs_.Bool("show", false, "list what would be written without changing anything")
 	force := fs_.Bool("force", false, "overwrite files that already exist")
-	fs_.Parse(flagsFirst(args))
+	fs_.Parse(flagsFirst(fs_, args))
 
 	if fs_.NArg() != 1 {
 		return fmt.Errorf("usage: jat import <bundle.tar.gz> [--show] [--force]")

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -160,6 +162,28 @@ func TestConfigsSecretsAreMarked(t *testing.T) {
 					t.Errorf("configs[%q] contains %q but is not marked Secret", name, p)
 				}
 			}
+		}
+	}
+}
+
+func TestFlagsFirstKeepsValuesWithTheirFlags(t *testing.T) {
+	newFS := func() *flag.FlagSet {
+		fs := flag.NewFlagSet("t", flag.ContinueOnError)
+		fs.String("transport", "", "")
+		fs.Bool("all", false, "")
+		fs.Bool("show", false, "")
+		return fs
+	}
+	for _, tc := range []struct{ in, want []string }{
+		// The bug: --all was hoisted next to --transport and became its value.
+		{[]string{"--transport", "file", "--all"}, []string{"--transport", "file", "--all"}},
+		{[]string{"b.tar.gz", "--transport", "file", "--show"}, []string{"--transport", "file", "--show", "b.tar.gz"}},
+		{[]string{"b.tar.gz", "--transport=file", "--show"}, []string{"--transport=file", "--show", "b.tar.gz"}},
+		{[]string{"gh", "--show"}, []string{"--show", "gh"}},
+		{[]string{"--show", "--", "-odd-name"}, []string{"--show", "--", "-odd-name"}},
+	} {
+		if got := flagsFirst(newFS(), tc.in); !slices.Equal(got, tc.want) {
+			t.Errorf("flagsFirst(%v) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
 }
