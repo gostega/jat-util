@@ -330,15 +330,15 @@ func migrateReceive(args []string) error {
 	transport := fs_.String("transport", "", "how the bundle arrived: "+strings.Join(transports, ", "))
 	all := fs_.Bool("all", false, "skip the picker and apply everything that is not already identical")
 	show := fs_.Bool("show", false, "print what would be written without changing anything")
-	key := fs_.String("key", "", "for --transport 1password: which migration, when more than one is waiting")
+	key := fs_.String("key", "", "for --transport vault: which migration, when more than one is waiting")
 	fs_.Parse(flagsFirst(fs_, args))
 
 	if fs_.NArg() > 1 {
-		return fmt.Errorf("usage: jat migrate receive [<bundle.tar.gz> | --transport 1password [--key <key>]] [--all] [--show]")
+		return fmt.Errorf("usage: jat migrate receive [<bundle.tar.gz> | --transport vault [--key <key>]] [--all] [--show]")
 	}
 	// A key only means something to the vault, so it says how the bundle travelled.
 	if *key != "" && *transport == "" && fs_.NArg() == 0 {
-		*transport = "1password"
+		*transport = "vault"
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -356,7 +356,7 @@ func migrateReceive(args []string) error {
 		choice, ok, err := runPickerOne("How did it travel?", "",
 			[]PickRow{
 				{ID: "file", Label: "File", Note: "a bundle on disk — here, or in ~/Downloads"},
-				{ID: "1password", Label: "1Password", Note: "a document in your private vault"},
+				{ID: "vault", Label: "Password manager", Note: "1Password or Bitwarden, from your private vault"},
 			})
 		if err != nil {
 			return err
@@ -367,13 +367,13 @@ func migrateReceive(args []string) error {
 		}
 		*transport = choice
 	}
-	if !slices.Contains(transports, *transport) {
-		return fmt.Errorf("unknown transport %q (want %s)", *transport, strings.Join(transports, " or "))
+	if *transport, err = normaliseTransport(*transport); err != nil {
+		return err
 	}
 	bundlePath := fs_.Arg(0)
-	if *transport == "1password" {
+	if *transport == "vault" {
 		if bundlePath != "" {
-			return fmt.Errorf("a bundle path and --transport 1password are two different sources — pick one")
+			return fmt.Errorf("a bundle path and --transport vault are two different sources — pick one")
 		}
 		path, cleanup, err := bundleFromVault(*key)
 		if err != nil || path == "" {
@@ -471,15 +471,15 @@ func migrateReceive(args []string) error {
 // bytes on disk that the file transport would have been handed. An empty path
 // with no error means the person cancelled.
 func bundleFromVault(key string) (string, func(), error) {
-	vault, err := configuredVault()
+	c, vault, err := configuredVault()
 	if err != nil {
 		return "", nil, err
 	}
-	vb, ok, err := pickVaultBundle(vault, key)
+	vb, ok, err := pickVaultBundle(c, vault, key)
 	if err != nil || !ok {
 		return "", nil, err
 	}
-	return fetchVaultBundle(vault, vb)
+	return fetchVaultBundle(c, vault, vb)
 }
 
 func describeManifest(man Manifest) string {

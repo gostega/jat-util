@@ -47,19 +47,28 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
   backups and `jat migrate cleanup <key>` deletes them after asking. `send`
   never bundles them.
 
-### Through 1Password instead of a file
+### Through a password manager instead of a file
 
 ```sh
-jat vault set                          # once per machine: pick your private vault
-jat migrate send --transport 1password
-jat migrate receive --transport 1password [--key 7f3a]
+jat vault set                          # once per machine: which manager, which vault
+jat migrate send --transport vault
+jat migrate receive --transport vault [--key 7f3a]
 jat migrate inspect --key 7f3a
 ```
 
-- The bundle is the same bytes either way; the vault only carries it, as a
-  document titled `jat/migrate/<key>/<host>/<user>` and tagged `jat-migrate`.
-- `jat vault set` checks the vault's type once and refuses anything that is not
-  your private vault, so a bundle can never land somewhere shared.
-- jat only ever opens documents carrying both its tag and its title pattern,
-  and it cannot run `op item get` or `op read` at all.
+- 1Password (`op`) and Bitwarden (`bw`) are supported. `jat vault set` picks
+  whichever CLI is installed, or `--manager 1password|bitwarden` when both
+  are. `--transport 1password` / `--transport bitwarden` also work, as
+  spellings of `vault` that must match what was set.
+- The bundle is the same bytes either way; the manager only carries it. In
+  1Password it is a document titled `jat/migrate/<key>/<host>/<user>` and
+  tagged `jat-migrate`; in Bitwarden it is the attachment on a secure note
+  of that name in a `jat-migrate` folder (attachments need Premium).
+- `jat vault set` refuses anything that is not your private vault: in
+  1Password the vault's type must be PERSONAL; in Bitwarden, items owned by
+  an organization are never touched.
+- jat only ever opens items carrying both its title pattern and its own
+  mark, and it cannot run `op item get`, `op read`, `bw get item` or
+  `bw get password` at all.
+- Bitwarden needs an unlocked session: `export BW_SESSION=$(bw unlock --raw)`.
 - `--key` matters only when more than one migration is waiting.

@@ -67,8 +67,8 @@ func TestOpRunRefusesAnythingThatReadsAValue(t *testing.T) {
 func TestValidateVaultAcceptsOnlyPersonal(t *testing.T) {
 	f := &fakeOp{replies: map[string]string{"vault get": `{"id":"abc123","name":"Employee","type":"PERSONAL"}`}}
 	f.install(t)
-	ref, err := validateVault("Employee")
-	if err != nil || ref.ID != "abc123" || ref.Name != "Employee" {
+	ref, err := op.Validate("Employee")
+	if err != nil || ref.ID != "abc123" || ref.Name != "Employee" || ref.Manager != "1password" {
 		t.Fatalf("got %+v, %v", ref, err)
 	}
 	if len(f.calls) != 1 {
@@ -77,7 +77,7 @@ func TestValidateVaultAcceptsOnlyPersonal(t *testing.T) {
 
 	for _, typ := range []string{"USER_CREATED", "EVERYONE", "TRANSFER", ""} {
 		f.replies["vault get"] = fmt.Sprintf(`{"id":"zzz","name":"Team","type":%q}`, typ)
-		if _, err := validateVault("Team"); err == nil {
+		if _, err := op.Validate("Team"); err == nil {
 			t.Errorf("vault of type %q was accepted", typ)
 		}
 	}
@@ -85,7 +85,7 @@ func TestValidateVaultAcceptsOnlyPersonal(t *testing.T) {
 
 func TestInitKeepsTheChosenVault(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if err := saveConfig(Config{Profile: "debian", Host: "a", Vault: &VaultRef{ID: "abc123", Name: "Private"}}); err != nil {
+	if err := saveConfig(Config{Profile: "debian", Host: "a", Vault: &VaultRef{Manager: "1password", ID: "abc123", Name: "Private"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cmdInit([]string{"--host", "b"}); err != nil {
@@ -97,7 +97,9 @@ func TestInitKeepsTheChosenVault(t *testing.T) {
 	}
 }
 
-var testVault = VaultRef{ID: "v1", Name: "Private"}
+var testVault = VaultRef{Manager: "1password", ID: "v1", Name: "Private"}
+
+var op = onePassword{}
 
 func item(id, title, category, vaultID string, tags ...string) opItem {
 	it := opItem{ID: id, Title: title, Tags: tags, Category: category}
@@ -122,18 +124,18 @@ func TestOnlyItemsJatWroteAreEverFetched(t *testing.T) {
 	f := &fakeOp{replies: map[string]string{"item list": string(b)}}
 	f.install(t)
 
-	found, err := listVaultBundles(testVault, "")
+	found, err := listVaultBundles(op, testVault, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(found) != 1 || found[0].ItemID != "good" {
+	if len(found) != 1 || found[0].Item.ID != "good" {
 		t.Fatalf("accepted %+v, want only the item carrying every mark", found)
 	}
 	if found[0].Key != "7f3a" || found[0].Host != "old-mac" || found[0].User != "james" {
 		t.Errorf("listing fields wrong: %+v", found[0])
 	}
 
-	path, cleanup, err := fetchVaultBundle(testVault, found[0])
+	path, cleanup, err := fetchVaultBundle(op, testVault, found[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +160,7 @@ func TestKeyIsValidatedBeforeItReachesOp(t *testing.T) {
 	f := &fakeOp{replies: map[string]string{"item list": `[]`}}
 	f.install(t)
 	for _, bad := range []string{"7f3a,other-tag", "../x", "7F3A", "7f3", "--vault"} {
-		if _, err := listVaultBundles(testVault, bad); err == nil {
+		if _, err := listVaultBundles(op, testVault, bad); err == nil {
 			t.Errorf("key %q was accepted", bad)
 		}
 	}
@@ -170,7 +172,7 @@ func TestKeyIsValidatedBeforeItReachesOp(t *testing.T) {
 func TestSendFilesWithBothMarksInThePrivateVault(t *testing.T) {
 	f := &fakeOp{replies: map[string]string{"document create": `{"uuid":"new"}`}}
 	f.install(t)
-	title, err := sendVaultBundle(testVault, "/tmp/x.tar.gz", Manifest{Key: "7f3a", Host: "Old Mac!", User: "James T"})
+	title, err := sendVaultBundle(op, testVault, "/tmp/x.tar.gz", Manifest{Key: "7f3a", Host: "Old Mac!", User: "James T"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,9 +186,10 @@ func TestSendFilesWithBothMarksInThePrivateVault(t *testing.T) {
 		}
 	}
 	// What send writes, receive must recognise.
-	it := item("new", title, "DOCUMENT", "v1", "jat-migrate", "jat-migrate-7f3a")
-	if _, ok := jatWrote(it, testVault); !ok {
-		t.Error("receive would refuse what send just filed")
+	b, _ := json.Marshal([]opItem{item("new", title, "DOCUMENT", "v1", "jat-migrate", "jat-migrate-7f3a")})
+	f.replies["item list"] = string(b)
+	if found, err := listVaultBundles(op, testVault, ""); err != nil || len(found) != 1 {
+		t.Errorf("receive would refuse what send just filed: %v %v", found, err)
 	}
 }
 
@@ -214,14 +217,14 @@ func TestVaultTransportCarriesTheSameBundle(t *testing.T) {
 		return nil, fmt.Errorf("unexpected %v", args)
 	}
 
-	if _, err := sendVaultBundle(testVault, bundle, Manifest{Key: "7f3a", Host: "old", User: "u"}); err != nil {
+	if _, err := sendVaultBundle(op, testVault, bundle, Manifest{Key: "7f3a", Host: "old", User: "u"}); err != nil {
 		t.Fatal(err)
 	}
-	found, err := listVaultBundles(testVault, "7f3a")
+	found, err := listVaultBundles(op, testVault, "7f3a")
 	if err != nil || len(found) != 1 {
 		t.Fatalf("found %v, %v", found, err)
 	}
-	path, cleanup, err := fetchVaultBundle(testVault, found[0])
+	path, cleanup, err := fetchVaultBundle(op, testVault, found[0])
 	if err != nil {
 		t.Fatal(err)
 	}

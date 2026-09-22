@@ -28,9 +28,9 @@ var (
 type Config struct {
 	Profile string `json:"profile"`
 	Host    string `json:"host"`
-	// Vault is the private password-manager vault jat may write to. Chosen and
-	// type-checked by `jat vault set`; never a constant, since the name and id
-	// differ per account.
+	// Vault is the private password-manager vault jat may write to, and the
+	// manager it lives in. Chosen and checked by `jat vault set`; never a
+	// constant, since the manager, name and id differ per account.
 	Vault *VaultRef `json:"vault,omitempty"`
 }
 
@@ -75,15 +75,16 @@ func usage() {
                                      save the OS profile and this machine's name
   jat install <tool> [--<method>] [--show]
   jat list                           known tools and their default method
-  jat migrate send [--transport file|1password] [--out <file>] [--all] [--include-secrets] [--show]
+  jat migrate send [--transport file|vault] [--out <file>] [--all] [--include-secrets] [--show]
                                      pick config and bundle it for another machine
-  jat migrate receive [<bundle> | --transport 1password [--key <key>]] [--all] [--show]
+  jat migrate receive [<bundle> | --transport vault [--key <key>]] [--all] [--show]
                                      apply a bundle: absent / identical / differs per item
   jat migrate inspect <bundle> | --key <key> [--files]
                                      what a bundle holds, without applying it
   jat migrate cleanup [<key>] [--show] [--yes]
                                      delete the backups a receive left behind
-  jat vault [set [<name or id>]]     the private 1Password vault jat may use
+  jat vault [set [--manager 1password|bitwarden] [<name or id>]]
+                                     the private password-manager vault jat may use
   jat update [--check]               replace this binary with the latest release
   jat release [patch|minor|major]    tag and push a new release
   jat version

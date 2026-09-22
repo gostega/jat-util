@@ -14,8 +14,30 @@ import (
 )
 
 // Transports carry the bundle; they do not change what is in it. One
-// serialiser, one picker, one set of bugs.
-var transports = []string{"file", "1password"}
+// serialiser, one picker, one set of bugs. "vault" is whichever password
+// manager `jat vault set` chose; a manager's own name is accepted as a
+// spelling of it, as long as it is the one configured.
+var transports = []string{"file", "vault"}
+
+func normaliseTransport(t string) (string, error) {
+	switch {
+	case t == "" || slices.Contains(transports, t):
+		return t, nil
+	case slices.Contains(connectorNames(), t):
+		cfg, err := loadConfig()
+		if err != nil {
+			return "", err
+		}
+		if cfg.Vault == nil {
+			return "", fmt.Errorf("no vault chosen — run: jat vault set --manager %s", t)
+		}
+		if cfg.Vault.Manager != t {
+			return "", fmt.Errorf("the configured vault is %s, not %s — run: jat vault set --manager %s", cfg.Vault.Manager, t, t)
+		}
+		return "vault", nil
+	}
+	return "", fmt.Errorf("unknown transport %q (want %s)", t, strings.Join(transports, " or "))
+}
 
 func cmdMigrate(args []string) error {
 	if len(args) == 0 {
@@ -61,6 +83,7 @@ func migrateSend(args []string) error {
 	all := fs.Bool("all", false, "skip the picker and send everything available")
 	show := fs.Bool("show", false, "list what would be bundled without writing anything")
 	fs.Parse(flagsFirst(fs, args))
+	var err error
 
 	// No --transport: ask, unless there is nothing to ask on.
 	if *transport == "" {
@@ -70,7 +93,7 @@ func migrateSend(args []string) error {
 			choice, ok, err := runPickerOne("How should it travel?", "",
 				[]PickRow{
 					{ID: "file", Label: "File", Note: "a bundle you move yourself — AirDrop, USB, scp"},
-					{ID: "1password", Label: "1Password", Note: "stored as a document in your private vault"},
+					{ID: "vault", Label: "Password manager", Note: "1Password or Bitwarden, in your private vault"},
 				})
 			if err != nil {
 				return err
@@ -82,21 +105,22 @@ func migrateSend(args []string) error {
 			*transport = choice
 		}
 	}
-	if !slices.Contains(transports, *transport) {
-		return fmt.Errorf("unknown transport %q (want %s)", *transport, strings.Join(transports, " or "))
+	if *transport, err = normaliseTransport(*transport); err != nil {
+		return err
 	}
 	// Checked before the picker, not after it: nobody should choose a dozen
 	// items and then learn there is nowhere to send them.
-	var vault VaultRef
-	if *transport == "1password" && !*show {
+	var (
+		conn  Connector
+		vault VaultRef
+	)
+	if *transport == "vault" && !*show {
 		if *out != "" {
 			return fmt.Errorf("--out is for --transport file; the vault names its own document")
 		}
-		v, err := configuredVault()
-		if err != nil {
+		if conn, vault, err = configuredVault(); err != nil {
 			return err
 		}
-		vault = v
 	}
 
 	home, err := os.UserHomeDir()
@@ -160,7 +184,7 @@ func migrateSend(args []string) error {
 	if dest == "" {
 		dest = fmt.Sprintf("jat-migrate-%s.tar.gz", key)
 	}
-	if *transport == "1password" {
+	if *transport == "vault" {
 		// Same bundle, written somewhere private and gone once it is filed.
 		dir, err := os.MkdirTemp("", "jat-send-")
 		if err != nil {
@@ -181,13 +205,13 @@ func migrateSend(args []string) error {
 		return err
 	}
 
-	if *transport == "1password" {
-		title, err := sendVaultBundle(vault, dest, man)
+	if *transport == "vault" {
+		title, err := sendVaultBundle(conn, vault, dest, man)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("filed %s in vault %q\n", title, vault.Name)
-		fmt.Printf("  receive:  jat migrate receive --transport 1password --key %s\n", key)
+		fmt.Printf("filed %s in %s vault %q\n", title, conn.Label(), vault.Name)
+		fmt.Printf("  receive:  jat migrate receive --transport vault --key %s\n", key)
 	} else {
 		fmt.Printf("wrote %s\n", dest)
 	}

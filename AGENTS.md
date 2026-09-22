@@ -29,7 +29,10 @@ Flat package `main`, one file per concern:
 | `receive.go` | `migrate receive`: classify a bundle against disk, then write what was ticked |
 | `cleanup.go` | backups of overwritten files, their log, and `migrate cleanup` |
 | `inspect.go` | `migrate inspect`: a bundle's contents on stdout, never file contents |
-| `vault.go` | the private vault: choosing it, the `op` allowlist, and the tag-and-title scope rules |
+| `connector.go` | the `Connector` interface, the shared read gate `jatWrote`, and the title pattern |
+| `onepassword.go` | the 1Password connector (`op`) and its allowlist |
+| `bitwarden.go` | the Bitwarden connector (`bw`) and its allowlist |
+| `vault.go` | `jat vault set`, and the manager-neutral list/fetch/store flow |
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |
@@ -62,11 +65,13 @@ only for non-`rc` tags.
   named there. Adding a path is a product decision; say why in the commit.
 - **Transports carry the bundle; they do not change it.** New transports go in
   `migrate.go` behind the same serialiser and picker. Do not fork the format.
-- **The vault scope rules live in code, in `vault.go`.** `op` runs only through
-  `opRun` and its allowlist; nothing that returns an item's field value is on
-  it. jat reads only items carrying its tag *and* its title pattern, in the
-  configured vault. Do not add a title-search fallback, and do not widen the
-  allowlist without saying why in the commit.
+- **The vault scope rules live in code, in `connector.go`.** Each password
+  manager is a `Connector`; its CLI runs only through `runAllowed` and that
+  connector's allowlist, and nothing that returns an item's field value is on
+  it. Every read passes `jatWrote`: the configured vault, jat's title pattern,
+  and a manager-native mark naming the same key. Do not add a title-search
+  fallback, do not widen an allowlist without saying why in the commit, and
+  add a manager by adding a connector, not by branching in `migrate.go`.
 - **Prerelease tags (`-rcN`) build but never publish.** Cutting a release is a
   deliberate act; do not automate it away.
 - **`--show` must always be a faithful dry run.** Whatever `install` would
