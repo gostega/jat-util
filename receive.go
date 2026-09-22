@@ -386,6 +386,7 @@ func migrateReceive(args []string) error {
 			return err
 		}
 		if !ok {
+			releasePickerScreen()
 			fmt.Fprintln(os.Stderr, "Cancelled.")
 			return nil
 		}
@@ -441,12 +442,15 @@ func migrateReceive(args []string) error {
 			return err
 		}
 		if !ok {
+			releasePickerScreen()
 			fmt.Fprintln(os.Stderr, "Cancelled — nothing written.")
 			return nil
 		}
 		chosen = picked
 	}
 
+	// Menus are over; from here on, output must outlive the alternate screen.
+	releasePickerScreen()
 	fmt.Println(header)
 	identical := 0
 	for _, it := range items {
@@ -546,6 +550,7 @@ func chooseBundle(dirs []string) (string, error) {
 		return "", err
 	}
 	if !ok {
+		releasePickerScreen()
 		fmt.Fprintln(os.Stderr, "Cancelled.")
 		return "", nil
 	}

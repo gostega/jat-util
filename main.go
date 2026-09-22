@@ -72,6 +72,7 @@ func main() {
 		os.Exit(2)
 	}
 
+	releasePickerScreen()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "jat:", err)
 		os.Exit(1)

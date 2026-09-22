@@ -80,19 +80,16 @@ func runPickerMode(title, subtitle string, rows []PickRow, single bool) (ids []s
 		return nil, false, fmt.Errorf("%s needs a terminal — use --all, or pass flags, to choose non-interactively", title)
 	}
 
-	// The multi-select takes the alternate screen: it can be long, and the
-	// preview pane wants the whole terminal on a narrow one. The wizard
-	// questions render inline instead — each program entering and leaving
-	// the alternate screen in turn is what made the run flicker between
-	// menus (James, 2026-09-23).
-	opts := []tea.ProgramOption{
+	// Every menu is full screen, but the screen is entered once, here, and
+	// held until normal output starts (releasePickerScreen). Letting each
+	// program take and release the alternate screen itself flashed the
+	// terminal between menus (James, 2026-09-23).
+	holdPickerScreen()
+	out, err := tea.NewProgram(
+		newPickModel(title, subtitle, rows, single),
 		// stderr, so stdout stays clean for anything being piped or captured.
 		tea.WithOutput(os.Stderr),
-	}
-	if !single {
-		opts = append(opts, tea.WithAltScreen())
-	}
-	out, err := tea.NewProgram(newPickModel(title, subtitle, rows, single), opts...).Run()
+	).Run()
 	if err != nil {
 		return nil, false, err
 	}
@@ -114,6 +111,28 @@ func runPickerMode(title, subtitle string, rows []PickRow, single bool) (ids []s
 // A mode check for os.ModeCharDevice is not enough: /dev/null is itself a
 // character device, so a command run with stdin redirected from it passes that
 // test and then dies inside bubbletea instead. This is an ioctl check.
+// The alternate screen is held across a run's menus rather than toggled per
+// menu. holdPickerScreen enters it (or clears it, between menus);
+// releasePickerScreen leaves it and must run before anything meant to stay
+// visible is printed, since output written inside the alternate screen
+// disappears with it. main releases as a backstop.
+var pickerScreenHeld bool
+
+func holdPickerScreen() {
+	if !pickerScreenHeld {
+		fmt.Fprint(os.Stderr, "\x1b[?1049h")
+		pickerScreenHeld = true
+	}
+	fmt.Fprint(os.Stderr, "\x1b[2J\x1b[H")
+}
+
+func releasePickerScreen() {
+	if pickerScreenHeld {
+		fmt.Fprint(os.Stderr, "\x1b[2J\x1b[H\x1b[?1049l")
+		pickerScreenHeld = false
+	}
+}
+
 // A variable so tests can pretend there is a terminal.
 var stdinIsTerminal = func() bool {
 	return isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())

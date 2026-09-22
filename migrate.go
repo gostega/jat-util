@@ -55,6 +55,7 @@ func cmdMigrate(args []string) error {
 			return err
 		}
 		if !ok {
+			releasePickerScreen()
 			fmt.Fprintln(os.Stderr, "Cancelled.")
 			return nil
 		}
@@ -99,6 +100,7 @@ func migrateSend(args []string) error {
 				return err
 			}
 			if !ok {
+				releasePickerScreen()
 				fmt.Fprintln(os.Stderr, "Cancelled.")
 				return nil
 			}
@@ -161,12 +163,15 @@ func migrateSend(args []string) error {
 			return err
 		}
 		if !ok || len(picked) == 0 {
+			releasePickerScreen()
 			fmt.Fprintln(os.Stderr, "Nothing selected — no bundle written.")
 			return nil
 		}
 		chosen = picked
 	}
 
+	// Menus are over; from here on, output must outlive the alternate screen.
+	releasePickerScreen()
 	if *show {
 		fmt.Printf("would send from %s (host %s):\n", home, cfg.Host)
 		for _, name := range chosen {

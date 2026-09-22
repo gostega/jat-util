@@ -60,6 +60,7 @@ func cmdVault(args []string) error {
 	if err != nil {
 		return err
 	}
+	releasePickerScreen()
 	cfg.Vault = &ref
 	if err := saveConfig(cfg); err != nil {
 		return err
