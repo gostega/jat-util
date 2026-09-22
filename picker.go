@@ -80,12 +80,19 @@ func runPickerMode(title, subtitle string, rows []PickRow, single bool) (ids []s
 		return nil, false, fmt.Errorf("%s needs a terminal — use --all, or pass flags, to choose non-interactively", title)
 	}
 
-	out, err := tea.NewProgram(
-		newPickModel(title, subtitle, rows, single),
-		tea.WithAltScreen(),
+	// The multi-select takes the alternate screen: it can be long, and the
+	// preview pane wants the whole terminal on a narrow one. The wizard
+	// questions render inline instead — each program entering and leaving
+	// the alternate screen in turn is what made the run flicker between
+	// menus (James, 2026-09-23).
+	opts := []tea.ProgramOption{
 		// stderr, so stdout stays clean for anything being piped or captured.
 		tea.WithOutput(os.Stderr),
-	).Run()
+	}
+	if !single {
+		opts = append(opts, tea.WithAltScreen())
+	}
+	out, err := tea.NewProgram(newPickModel(title, subtitle, rows, single), opts...).Run()
 	if err != nil {
 		return nil, false, err
 	}
