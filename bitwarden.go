@@ -114,9 +114,9 @@ func bwState() (bwStatus, error) {
 // comment). Signing in is still the person's job: it may need 2FA, and it
 // is done once per machine, not once per run.
 func (bitwarden) Available() error {
-	if _, err := exec.LookPath("bw"); err != nil {
-		return notInstalled("bw", "bw")
-	}
+	// No LookPath here: bwExec does that, and a test with a stand-in bwExec
+	// must not depend on whether the machine running it has bw installed
+	// (it did, and passed locally while failing in CI — 2026-09-23).
 	st, err := bwState()
 	if err != nil {
 		return err

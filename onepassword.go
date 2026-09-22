@@ -51,11 +51,11 @@ var opExec = func(args ...string) ([]byte, error) {
 
 func opRun(args ...string) ([]byte, error) { return runAllowed("op", opAllowed, opExec, args...) }
 
+// Available only checks the binary is there: op signs in through its
+// desktop app on first use, so there is no session state to test up front.
 func (onePassword) Available() error {
-	if _, err := exec.LookPath("op"); err != nil {
-		return notInstalled("op", "op")
-	}
-	return nil
+	_, err := opRun("vault", "list", "--format", "json")
+	return err
 }
 
 func (onePassword) Vaults() ([]VaultRef, error) {
