@@ -107,7 +107,8 @@ func runPickerMode(title, subtitle string, rows []PickRow, single bool) (ids []s
 // A mode check for os.ModeCharDevice is not enough: /dev/null is itself a
 // character device, so a command run with stdin redirected from it passes that
 // test and then dies inside bubbletea instead. This is an ioctl check.
-func stdinIsTerminal() bool {
+// A variable so tests can pretend there is a terminal.
+var stdinIsTerminal = func() bool {
 	return isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
 }
 

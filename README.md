@@ -76,5 +76,8 @@ jat migrate inspect --key 7f3a
 - jat only ever opens items carrying both its title pattern and its own
   mark, and it cannot run `op item get`, `op read`, `bw get item` or
   `bw get password` at all.
-- Bitwarden needs an unlocked session: `export BW_SESSION=$(bw unlock --raw)`.
+- Bitwarden has no desktop-app hand-off, so when its vault is locked jat runs
+  `bw unlock` for you: bw asks for your master password and jat keeps the
+  session key in memory for that one run. A `BW_SESSION` you exported
+  yourself is used as-is. Signing in (`bw login`) stays yours to do once.
 - `--key` matters only when more than one migration is waiting.

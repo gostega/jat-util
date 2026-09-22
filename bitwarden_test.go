@@ -39,7 +39,13 @@ func (f *fakeBw) install(t *testing.T) {
 		f.calls = append(f.calls, args)
 		switch strings.Join(args[:min(2, len(args))], " ") {
 		case "status":
-			return json.Marshal(map[string]string{"status": f.status, "userId": "u1", "userEmail": "james@example.test"})
+			st := f.status
+			// The fake replaces bwExec, which is what appends --session, so
+			// it reads the run's key directly. A good key unlocks, as bw would.
+			if bwSession == "unlocked-key" {
+				st = "unlocked"
+			}
+			return json.Marshal(map[string]string{"status": st, "userId": "u1", "userEmail": "james@example.test"})
 		case "sync":
 			return []byte("Syncing complete."), nil
 		case "list folders":
@@ -259,5 +265,44 @@ func TestBitwardenWithoutPremiumSaysSo(t *testing.T) {
 	_, err := sendVaultBundle(bitwarden{}, bwVault, bundle, Manifest{Key: "7f3a", Host: "h", User: "u"})
 	if err == nil || !strings.Contains(err.Error(), "Premium") {
 		t.Errorf("got %v, want the Premium explanation", err)
+	}
+}
+
+// James, 2026-09-23: jat may unlock for the run. The key stays in memory,
+// goes to bw as --session, and never appears in anything jat prints.
+func TestBitwardenUnlocksForTheRunOnATerminal(t *testing.T) {
+	f := &fakeBw{status: "locked", folders: []map[string]any{{"id": "f1", "name": "jat-migrate"}}}
+	f.install(t)
+	prevTTY, prevUnlock, prevSession := stdinIsTerminal, bwUnlock, bwSession
+	t.Cleanup(func() { stdinIsTerminal, bwUnlock, bwSession = prevTTY, prevUnlock, prevSession })
+	unlocks := 0
+	bwUnlock = func() ([]byte, error) { unlocks++; return []byte("unlocked-key\n"), nil }
+
+	stdinIsTerminal = func() bool { return false }
+	if err := (bitwarden{}).Available(); err == nil || !strings.Contains(err.Error(), "BW_SESSION") || unlocks != 0 {
+		t.Fatalf("without a terminal: err=%v unlocks=%d; want the hint and no unlock attempt", err, unlocks)
+	}
+
+	stdinIsTerminal = func() bool { return true }
+	if err := (bitwarden{}).Available(); err != nil {
+		t.Fatalf("with a terminal: %v", err)
+	}
+	if unlocks != 1 || bwSession != "unlocked-key" {
+		t.Fatalf("unlocks=%d session=%q", unlocks, bwSession)
+	}
+	// Every later call carries the key, and nothing else in the run asks again.
+	if _, err := listVaultBundles(bitwarden{}, bwVault, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := (bitwarden{}).Available(); err != nil || unlocks != 1 {
+		t.Errorf("second Available: err=%v unlocks=%d, want no second prompt", err, unlocks)
+	}
+
+	// A failed unlock leaves no half-state behind.
+	bwSession = ""
+	f.status = "locked"
+	bwUnlock = func() ([]byte, error) { return []byte("wrong-key\n"), nil }
+	if err := (bitwarden{}).Available(); err == nil || bwSession != "" {
+		t.Errorf("bad unlock: err=%v session=%q, want an error and an empty session", err, bwSession)
 	}
 }

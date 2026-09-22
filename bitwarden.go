@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
@@ -33,7 +34,19 @@ import (
 // Attachments need a Bitwarden Premium account. Without one, Store fails at
 // the attachment step and says so. Not yet run against a live bw
 // (2026-09-22): JSON shapes and flags are from its documentation.
+//
+// Unlocking. bw has no desktop-app integration, so a session is a key that
+// `bw unlock` prints and every later call needs. James (2026-09-23) accepted
+// jat doing that step itself: when the vault is locked and there is a
+// terminal, jat runs `bw unlock --raw` with the terminal attached — bw asks
+// for the master password, not jat — and keeps the key in memory for the
+// rest of the run, passing it as --session. It is never written, printed or
+// logged, and BW_SESSION set by the shell is used as-is when present.
 type bitwarden struct{}
+
+// bwSession is the key for this run only. Empty means "whatever the
+// environment has", which is how a shell-exported BW_SESSION keeps working.
+var bwSession string
 
 func (bitwarden) Name() string  { return "bitwarden" }
 func (bitwarden) Label() string { return "Bitwarden" }
@@ -58,7 +71,11 @@ var bwExec = func(args ...string) ([]byte, error) {
 	if _, err := exec.LookPath("bw"); err != nil {
 		return nil, notInstalled("bw", "bw")
 	}
-	cmd := exec.Command("bw", append(args, "--nointeraction")...)
+	full := append(slices.Clone(args), "--nointeraction")
+	if bwSession != "" {
+		full = append(full, "--session", bwSession)
+	}
+	cmd := exec.Command("bw", full...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -92,8 +109,10 @@ func bwState() (bwStatus, error) {
 	return st, nil
 }
 
-// Available needs an unlocked session: bw reads BW_SESSION from the
-// environment, and jat inherits it rather than asking for a password itself.
+// Available needs an unlocked session. A shell-exported BW_SESSION is used
+// as found; otherwise, on a terminal, jat unlocks for this run (see the type
+// comment). Signing in is still the person's job: it may need 2FA, and it
+// is done once per machine, not once per run.
 func (bitwarden) Available() error {
 	if _, err := exec.LookPath("bw"); err != nil {
 		return notInstalled("bw", "bw")
@@ -106,10 +125,49 @@ func (bitwarden) Available() error {
 	case "unlocked":
 		return nil
 	case "locked":
-		return errors.New("Bitwarden is locked — run: export BW_SESSION=$(bw unlock --raw)")
+		if !stdinIsTerminal() {
+			return errors.New("Bitwarden is locked — run: export BW_SESSION=$(bw unlock --raw)")
+		}
+		return bwUnlockForThisRun()
 	default:
-		return errors.New("not signed in to Bitwarden — run: bw login, then export BW_SESSION=$(bw unlock --raw)")
+		return errors.New("not signed in to Bitwarden — run: bw login, then try again")
 	}
+}
+
+// bwUnlockForThisRun runs `bw unlock --raw` with the terminal attached, so
+// bw does its own prompting, and keeps only the key it prints.
+func bwUnlockForThisRun() error {
+	fmt.Fprintln(os.Stderr, "Bitwarden is locked — bw will ask for your master password (held for this run only).")
+	out, err := bwUnlock()
+	if err != nil {
+		return err
+	}
+	key := strings.TrimSpace(string(out))
+	if key == "" {
+		return errors.New("bw unlock returned no session key")
+	}
+	bwSession = key
+	st, err := bwState()
+	if err != nil {
+		return err
+	}
+	if st.Status != "unlocked" {
+		bwSession = ""
+		return errors.New("bw unlock did not leave the vault unlocked")
+	}
+	return nil
+}
+
+// bwUnlock is the one bw call that is not through bwExec: the prompt needs
+// stdin and stderr to be the terminal, and --nointeraction would refuse it.
+var bwUnlock = func() ([]byte, error) {
+	cmd := exec.Command("bw", "unlock", "--raw")
+	cmd.Stdin, cmd.Stderr = os.Stdin, os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("bw unlock: %w", err)
+	}
+	return out, nil
 }
 
 // Vaults is the one vault an account has. Its id is the user id, which is
