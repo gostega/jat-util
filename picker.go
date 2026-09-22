@@ -542,7 +542,21 @@ var (
 	pickWarn = pickStyle.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
 )
 
+// Syntax colours: muted, and distinct from the diff's red and green.
+var spanStyles = map[byte]lipgloss.Style{
+	'c': pickStyle.NewStyle().Foreground(lipgloss.Color("243")).Italic(true),
+	's': pickStyle.NewStyle().Foreground(lipgloss.Color("14")).Bold(true),
+	'k': pickStyle.NewStyle().Foreground(lipgloss.Color("75")),
+	'q': pickStyle.NewStyle().Foreground(lipgloss.Color("114")),
+	'n': pickStyle.NewStyle().Foreground(lipgloss.Color("173")),
+	'w': pickStyle.NewStyle().Foreground(lipgloss.Color("176")),
+	'v': pickStyle.NewStyle().Foreground(lipgloss.Color("221")),
+}
+
 func renderPreviewLine(l PreviewLine, cols int) string {
+	if l.Kind == ' ' && len(l.Spans) > 0 {
+		return renderSpans(l.Spans, cols)
+	}
 	text := truncate(strings.ReplaceAll(l.Text, "\t", "    "), cols)
 	switch l.Kind {
 	case '+':
@@ -559,6 +573,32 @@ func renderPreviewLine(l PreviewLine, cols int) string {
 		return pickTitle.Render(text)
 	}
 	return text
+}
+
+// renderSpans styles each span and cuts the whole line at cols, the same
+// ellipsis rule as plain lines but applied across the styled pieces.
+func renderSpans(spans []span, cols int) string {
+	var b strings.Builder
+	used := 0
+	for _, sp := range spans {
+		text := strings.ReplaceAll(sp.text, "\t", "    ")
+		if cols > 0 {
+			room := cols - used
+			if room <= 0 {
+				break
+			}
+			if len([]rune(text)) > room {
+				text = truncate(text, room)
+			}
+		}
+		used += len([]rune(text))
+		if st, ok := spanStyles[sp.kind]; ok {
+			b.WriteString(st.Render(text))
+		} else {
+			b.WriteString(text)
+		}
+	}
+	return b.String()
 }
 
 // viewFullscreen is the narrow-terminal preview: the same content as the

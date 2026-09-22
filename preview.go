@@ -28,6 +28,9 @@ type Preview struct {
 type PreviewLine struct {
 	Kind byte // ' ' plain · '+' added · '-' removed · '@' hunk · '.' dim · '!' warning · 'h' heading
 	Text string
+	// Spans is optional syntax colour for a plain line (highlight.go). Diff
+	// lines never carry it: red/green already spends the colour channel.
+	Spans []span
 }
 
 const (
@@ -141,13 +144,14 @@ func previewFile(rel string, data []byte, size int64, truncated bool) []PreviewL
 		return []PreviewLine{dim(fmt.Sprintf("large text file, %s — not shown", humanSize(size)))}
 	}
 	lines := splitLines(data)
+	lang := langFor(rel)
 	out := make([]PreviewLine, 0, min(len(lines), previewMaxLines)+1)
 	for i, l := range lines {
 		if i == previewMaxLines {
 			out = append(out, dim(fmt.Sprintf("… %d more lines", len(lines)-i)))
 			break
 		}
-		out = append(out, pl(' ', l))
+		out = append(out, PreviewLine{Kind: ' ', Text: l, Spans: highlightLine(lang, l)})
 	}
 	return out
 }

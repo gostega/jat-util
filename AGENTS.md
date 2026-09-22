@@ -34,6 +34,7 @@ Flat package `main`, one file per concern:
 | `bitwarden.go` | the Bitwarden connector (`bw`) and its allowlist |
 | `vault.go` | `jat vault set`, and the manager-neutral list/fetch/store flow |
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate, with its preview pane |
+| `highlight.go` | small per-format tokenizers for syntax colour in the pane; no library by design |
 | `preview.go` | what the pane shows: diffs, file heads, trees — and never a Secret item's contents |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |

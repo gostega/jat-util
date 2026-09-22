@@ -47,6 +47,9 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
   (`←`, `q` or `esc` return). Secret items show file names and states only,
   never contents; set `"preview": {"hideSecretNames": true}` in
   `~/.jat/config.json` to hide the names too.
+- The file view in the pane is syntax-coloured for the formats jat carries
+  (shell, INI/gitconfig, TOML, JSON, YAML, ssh_config, key = value).
+  Diffs stay red/green only.
 - `inspect` never prints file contents.
 - A file `receive` overwrites is kept beside it as `<name>.pre-jat-<key>`. When
   you are happy with the result, `jat migrate cleanup <key> --show` lists those
