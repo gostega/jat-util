@@ -48,7 +48,7 @@ caught.
 make build      # bin/jat, version stamped from git describe
 make test       # go test ./...
 make vet
-make install    # copies into ~/bin via rename, safe while jat is running
+make install    # copies into ~/.local/bin via rename, safe while jat is running
 ```
 
 Go version floor is whatever `go.mod` declares. CI (`.github/workflows/release.yml`)
