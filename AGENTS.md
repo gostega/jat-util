@@ -33,7 +33,8 @@ Flat package `main`, one file per concern:
 | `onepassword.go` | the 1Password connector (`op`) and its allowlist |
 | `bitwarden.go` | the Bitwarden connector (`bw`) and its allowlist |
 | `vault.go` | `jat vault set`, and the manager-neutral list/fetch/store flow |
-| `picker.go` | the Bubble Tea multi/single-select picker used by migrate |
+| `picker.go` | the Bubble Tea multi/single-select picker used by migrate, with its preview pane |
+| `preview.go` | what the pane shows: diffs, file heads, trees — and never a Secret item's contents |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |
 
@@ -74,6 +75,10 @@ only for non-`rc` tags.
   add a manager by adding a connector, not by branching in `migrate.go`.
 - **Prerelease tags (`-rcN`) build but never publish.** Cutting a release is a
   deliberate act; do not automate it away.
+- **A Secret item's contents never reach a `Preview`.** `previewSecret` is the
+  only builder such an item may pass through; it shows names and states, never
+  bytes or diffs. `TestSecretItemsAreNeverPreviewed` guards it. Do not add a
+  "just the first line" exception.
 - **`--show` must always be a faithful dry run.** Whatever `install` would
   execute, `--show` prints exactly that.
 

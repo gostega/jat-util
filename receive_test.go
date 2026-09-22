@@ -93,7 +93,7 @@ func TestReadBundleClassifiesAgainstDisk(t *testing.T) {
 
 	// Identical arrives unticked; so does anything this jat does not recognise.
 	ticked := map[string]bool{}
-	for _, r := range receiveRows(items) {
+	for _, r := range receiveRows(items, "", home, PreviewPrefs{}) {
 		ticked[r.ID] = r.Selected
 	}
 	for name, wantTick := range map[string]bool{"git": true, "ghostty": true, "zsh": false, unlistedItem: false} {

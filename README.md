@@ -41,6 +41,12 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
   `differs` means ticking it overwrites a file that changed on this machine.
 - A bundle is treated as untrusted input: an entry that would land outside
   `$HOME` refuses the whole bundle before anything is written.
+- In the picker, `→` opens a preview of the row under the cursor: on receive
+  a diff of what would change, on send the file as it is here; directories
+  show as a tree. Below 100 columns the preview takes the whole screen
+  (`←`, `q` or `esc` return). Secret items show file names and states only,
+  never contents; set `"preview": {"hideSecretNames": true}` in
+  `~/.jat/config.json` to hide the names too.
 - `inspect` never prints file contents.
 - A file `receive` overwrites is kept beside it as `<name>.pre-jat-<key>`. When
   you are happy with the result, `jat migrate cleanup <key> --show` lists those

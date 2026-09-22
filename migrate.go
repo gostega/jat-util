@@ -152,6 +152,7 @@ func migrateSend(args []string) error {
 				ID: name, Label: name, Note: note, NoteColor: colour,
 				// Secrets are never ticked by default, even when offered.
 				Selected: !item.Secret,
+				Preview:  func() Preview { return sendPreview(home, name) },
 			})
 		}
 		picked, ok, err := runPicker("What should leave this machine?",

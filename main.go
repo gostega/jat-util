@@ -32,6 +32,15 @@ type Config struct {
 	// manager it lives in. Chosen and checked by `jat vault set`; never a
 	// constant, since the manager, name and id differ per account.
 	Vault *VaultRef `json:"vault,omitempty"`
+	// Preview holds the picker's preview-pane preferences.
+	Preview PreviewPrefs `json:"preview,omitempty"`
+}
+
+type PreviewPrefs struct {
+	// HideSecretNames hides even the file names of a Secret item in the
+	// pane (counts and size only), for screen shares. Contents are never
+	// shown either way.
+	HideSecretNames bool `json:"hideSecretNames,omitempty"`
 }
 
 func main() {

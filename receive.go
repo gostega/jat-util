@@ -240,22 +240,46 @@ func coveredBy(rel string, patterns []string) bool {
 	return false
 }
 
-func receiveRows(items []*bundleItem) []PickRow {
+// receiveRows turns items into picker rows. bundlePath and home feed the
+// preview pane; with bundlePath empty, rows have no preview.
+func receiveRows(items []*bundleItem, bundlePath, home string, prefs PreviewPrefs) []PickRow {
 	rows := make([]PickRow, 0, len(items))
 	for _, it := range items {
 		state := it.State()
 		note := state + " — " + describeCounts(it)
+		short := state + " · " + shortCounts(it)
 		colour := map[string]string{stateDiffers: "11", stateAbsent: "10"}[state]
 		if it.Secret {
 			note = "SECRET · " + note
+			short = "SECRET · " + short
 			colour = "9"
 		}
-		rows = append(rows, PickRow{
-			ID: it.Name, Label: it.Name, Note: note, NoteColor: colour,
+		row := PickRow{
+			ID: it.Name, Label: it.Name, Note: note, ShortNote: short, NoteColor: colour,
 			Selected: state != stateIdentical && it.Name != unlistedItem,
-		})
+		}
+		if bundlePath != "" {
+			row.Preview = func() Preview { return receivePreview(bundlePath, home, it, prefs.HideSecretNames) }
+		}
+		rows = append(rows, row)
 	}
 	return rows
+}
+
+// shortCounts is describeCounts for the narrow list beside an open pane.
+func shortCounts(it *bundleItem) string {
+	changed, added, same := it.counts()
+	var parts []string
+	if changed > 0 {
+		parts = append(parts, fmt.Sprintf("%d over", changed))
+	}
+	if added > 0 {
+		parts = append(parts, fmt.Sprintf("%d new", added))
+	}
+	if same > 0 {
+		parts = append(parts, fmt.Sprintf("%d same", same))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func describeCounts(it *bundleItem) string {
@@ -398,7 +422,8 @@ func migrateReceive(args []string) error {
 	}
 	header := describeManifest(man)
 
-	rows := receiveRows(items)
+	cfg, _ := loadConfig()
+	rows := receiveRows(items, bundlePath, home, cfg.Preview)
 	var chosen []string
 	switch {
 	case *all || *show && !stdinIsTerminal():
