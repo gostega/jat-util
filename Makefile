@@ -8,7 +8,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v/
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X main.Version=$(VERSION) -X main.Commit=$(COMMIT)
 
-.PHONY: build test vet install clean
+.PHONY: build test vet install clean changelog
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) .
@@ -38,3 +38,8 @@ install: build
 
 clean:
 	rm -f $(BINARY_NAME)
+
+# The ## Unreleased block for CHANGELOG.md, assembled from commit trailers
+# since the last promoted (non-rc) tag. Warns about trailers git did not parse.
+changelog:
+	@$(HOME)/.claude/skills/james-dev-conventions/helpers/changelog.sh
