@@ -33,13 +33,23 @@ type PickRow struct {
 
 // The pane needs room for a diff. Below paneMinWidth the preview takes the
 // whole screen instead (James, 2026-09-18) rather than being squeezed into a
-// sliver; at or above it the list keeps paneListCols and the pane the rest.
-// Both are tunable in one place (James, 2026-09-22: "is it hard to increase
-// the minimum later?" — no).
+// sliver. At or above it the list takes a share of the width that grows with
+// the terminal — paneListMin on a 100-column terminal, up to paneListMax on
+// a wide monitor, where a fixed 40 left most of the screen empty (James,
+// 2026-09-24) — and the pane gets the rest. Notes switch to their short form
+// only while the list column is below paneFullNoteCols.
 const (
-	paneMinWidth = 100
-	paneListCols = 40
+	paneMinWidth     = 100
+	paneListMin      = 40
+	paneListMax      = 72
+	paneListShare    = 0.38
+	paneFullNoteCols = 58
 )
+
+// listColsFor is the list column's width beside an open pane.
+func listColsFor(width int) int {
+	return max(paneListMin, min(paneListMax, int(float64(width)*paneListShare)))
+}
 
 // Styles come from a renderer bound to stderr, not lipgloss's default one.
 // lipgloss decides what the terminal supports by inspecting stdout — which is
@@ -414,7 +424,7 @@ func (m *pickModel) View() string {
 	// Rows are cut to it rather than wrapped, so listRows() stays true.
 	listCols := m.width
 	if m.paneOpen {
-		listCols = paneListCols
+		listCols = listColsFor(m.width)
 	}
 	var list []string
 	if start > 0 {
@@ -432,7 +442,7 @@ func (m *pickModel) View() string {
 	}
 
 	if m.paneOpen {
-		pane := m.renderPane(m.width-paneListCols-3, len(list))
+		pane := m.renderPane(m.width-listCols-3, len(list))
 		for i := 0; i < max(len(list), len(pane)); i++ {
 			left := ""
 			if i < len(list) {
@@ -442,7 +452,7 @@ func (m *pickModel) View() string {
 			if i < len(pane) {
 				right = pane[i]
 			}
-			b.WriteString(padTo(left, paneListCols) + pickDim.Render("│") + " " + right + "\n")
+			b.WriteString(padTo(left, listCols) + pickDim.Render("│") + " " + right + "\n")
 		}
 	} else {
 		for _, l := range list {
@@ -493,7 +503,7 @@ func (m *pickModel) renderRow(r PickRow, atCursor bool, labelWidth, cols int) st
 		style = pickOn
 	}
 	note := r.Note
-	if m.paneOpen && r.ShortNote != "" {
+	if m.paneOpen && r.ShortNote != "" && cols < paneFullNoteCols {
 		note = r.ShortNote
 	}
 	if note == "" {

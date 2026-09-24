@@ -78,10 +78,23 @@ func stateWord(s string) string {
 	return s
 }
 
-// previewIdentical is what an already-identical row shows: nothing worth
-// rendering, said in one line.
-func previewIdentical(it *bundleItem) Preview {
-	return Preview{Title: it.Name, Lines: []PreviewLine{dim("identical — nothing would change on this machine")}}
+// previewContents shows an item as it is: one file's head, or a tree for
+// several. Used where there is no change to show but the person still
+// wants to see what the item holds.
+func previewContents(bundlePath string, it *bundleItem, subtitle string) Preview {
+	if len(it.Files) != 1 {
+		return previewTree(it, fmt.Sprintf("%d files, %s · %s", len(it.Files), humanSize(it.size()), subtitle))
+	}
+	f := it.Files[0]
+	bodies, err := bundleBodies(bundlePath, []string{f.Rel})
+	p := Preview{Title: fmt.Sprintf("%s  · %s · %s", it.Name, f.Rel, subtitle)}
+	if err != nil {
+		p.Lines = []PreviewLine{pl('!', "could not read the bundle: "+err.Error())}
+		return p
+	}
+	body := bodies[f.Rel]
+	p.Lines = previewFile(f.Rel, body.data, body.size, body.truncated)
+	return p
 }
 
 // previewTree draws a directory-shaped item as its file tree with sizes, not
@@ -338,7 +351,9 @@ func receivePreview(bundlePath, home string, it *bundleItem, hideSecretNames boo
 	case it.Secret:
 		return previewSecret(it, hideSecretNames)
 	case it.State() == stateIdentical:
-		return previewIdentical(it)
+		// Nothing would change, but the contents are still worth a look
+		// (James, 2026-09-24): the bundle copy is byte-for-byte what is here.
+		return previewContents(bundlePath, it, "identical · already on this machine")
 	}
 	changed, added, _ := it.counts()
 	if changed == 0 && len(it.Files) > 1 {

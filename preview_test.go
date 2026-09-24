@@ -30,7 +30,7 @@ func previewRows() []PickRow {
 }
 
 func TestPaneOpensWithRightClosesWithLeftAndLettersStillFilter(t *testing.T) {
-	m := sized(newPickModel("t", "", previewRows(), false), 120, 30)
+	m := sized(newPickModel("t", "", previewRows(), false), 110, 30)
 	if m.paneOpen {
 		t.Fatal("pane open before → was pressed")
 	}
@@ -281,5 +281,44 @@ func TestLineDiff(t *testing.T) {
 	}
 	if lines := previewDiff([]byte("same\n"), []byte("same\r\n")); !strings.Contains(lines[0].Text, "no line changes") && !strings.Contains(lines[0].Text, "-") {
 		t.Errorf("unexpected: %v", lines)
+	}
+}
+
+func TestListColumnGrowsWithTheTerminal(t *testing.T) {
+	if got := listColsFor(100); got != paneListMin {
+		t.Errorf("at 100 columns list = %d, want %d", got, paneListMin)
+	}
+	if got := listColsFor(160); got <= paneListMin || got > paneListMax {
+		t.Errorf("at 160 columns list = %d, want between %d and %d", got, paneListMin, paneListMax)
+	}
+	if got := listColsFor(400); got != paneListMax {
+		t.Errorf("at 400 columns list = %d, want the cap %d", got, paneListMax)
+	}
+	// On a wide terminal the full note is shown; on a narrow one the short.
+	wide := send(sized(newPickModel("t", "", previewRows(), false), 200, 30), "right").View()
+	if !strings.Contains(wide, "would be overwritten, 1 new") {
+		t.Error("wide terminal still shows the short note")
+	}
+	narrow := send(sized(newPickModel("t", "", previewRows(), false), 100, 30), "right").View()
+	if !strings.Contains(narrow, "differs · 1 over") {
+		t.Error("100-column terminal did not switch to the short note")
+	}
+}
+
+func TestIdenticalItemsStillShowContents(t *testing.T) {
+	home := t.TempDir()
+	writeHome(t, home, map[string]string{".zshrc": "export A=1\n"})
+	b := testBundle(t, []string{"zsh"}, map[string]string{"home/.zshrc": "export A=1\n"})
+	_, items, _ := readBundle(b, home)
+	if items[0].State() != stateIdentical {
+		t.Fatal("setup")
+	}
+	p := receivePreview(b, home, items[0], false)
+	joined := p.Title
+	for _, l := range p.Lines {
+		joined += "\n" + l.Text
+	}
+	if !strings.Contains(joined, "export A=1") || !strings.Contains(joined, "identical") {
+		t.Errorf("identical item should show its contents and say it is identical:\n%s", joined)
 	}
 }
