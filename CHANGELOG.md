@@ -5,6 +5,17 @@ trailers (`Changelog:`, `Release-Note:`, `Upgrade:`); `make changelog` prints
 the unreleased block. Every entry ends with an `Upgrade:` line, even when it
 is "nothing to do".
 
+## v0.3.1 — 2026-09-24
+
+### Changed
+
+- The 1Password vault transport has been verified end to end (`vault set`,
+  `migrate send`, `inspect --key`, `receive`) against op 2.39.0 on a
+  1Password Business account. Bitwarden is still exercised against stand-ins
+  only.
+
+Upgrade: nothing to do
+
 ## v0.3.0 — 2026-09-23
 
 ### Added

@@ -68,13 +68,16 @@ jat migrate inspect --key 7f3a
 - 1Password (`op`) and Bitwarden (`bw`) are supported. `jat vault set` picks
   whichever CLI is installed, or `--manager 1password|bitwarden` when both
   are. `--transport 1password` / `--transport bitwarden` also work, as
-  spellings of `vault` that must match what was set.
+  spellings of `vault` that must match what was set. The 1Password path has
+  been run end to end against op 2.39.0; Bitwarden has not yet been run
+  against a real `bw`.
 - The bundle is the same bytes either way; the manager only carries it. In
   1Password it is a document titled `jat/migrate/<key>/<host>/<user>` and
   tagged `jat-migrate`; in Bitwarden it is the attachment on a secure note
   of that name in a `jat-migrate` folder (attachments need Premium).
 - `jat vault set` refuses anything that is not your private vault: in
-  1Password the vault's type must be PERSONAL; in Bitwarden, items owned by
+  1Password the vault's type must be PERSONAL (named Private on a personal
+  account, Employee on a Business one); in Bitwarden, items owned by
   an organization are never touched.
 - jat only ever opens items carrying both its title pattern and its own
   mark, and it cannot run `op item get`, `op read`, `bw get item` or
