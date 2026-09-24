@@ -15,8 +15,9 @@ import (
 // onePassword drives the `op` CLI. A migration is a document in the private
 // vault, tagged jat-migrate and jat-migrate-<key>.
 //
-// Not yet run against a real op (2026-09-18): the JSON shapes and flags here
-// are from its documentation. First live run is owed.
+// Verified against op 2.39.0 on a 1Password Business account: the private
+// vault reports type PERSONAL (named Employee there), team vaults
+// USER_CREATED, and documents list as category DOCUMENT.
 type onePassword struct{}
 
 func (onePassword) Name() string  { return "1password" }
