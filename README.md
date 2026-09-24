@@ -51,10 +51,12 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
   (shell, INI/gitconfig, TOML, JSON, YAML, ssh_config, key = value).
   Diffs stay red/green only.
 - `inspect` never prints file contents.
-- A file `receive` overwrites is kept beside it as `<name>.pre-jat-<key>`. When
-  you are happy with the result, `jat migrate cleanup <key> --show` lists those
-  backups and `jat migrate cleanup <key>` deletes them after asking. `send`
-  never bundles them.
+- A file `receive` overwrites is kept beside it as `<name>.pre-jat-<key>`.
+  `jat migrate cleanup` opens a menu of everything that can be tidied — those
+  backups, and migrations still sitting in your password manager — shows
+  exactly what would go, and asks before deleting. `jat migrate cleanup <key>`
+  takes one migration's backups and vault copy together; `--show` previews,
+  `--yes` skips the question. `send` never bundles a backup.
 
 ### Through a password manager instead of a file
 

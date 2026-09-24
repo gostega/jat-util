@@ -49,6 +49,9 @@ type Connector interface {
 	Fetch(vault VaultRef, it storedItem, dest string) error
 	// Store files a bundle under title, carrying the manager-native mark.
 	Store(vault VaultRef, bundlePath, title string, man Manifest) error
+	// Delete removes one item. Like Fetch it is only ever handed an item
+	// jatWrote vouched for, so a connector cannot be pointed at anything else.
+	Delete(vault VaultRef, it storedItem) error
 }
 
 // storedItem is an item as a listing shows it, in manager-neutral terms.

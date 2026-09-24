@@ -242,3 +242,8 @@ func slugUser(s string) string {
 	}
 	return s
 }
+
+// deleteVaultBundle removes one migration the listing vouched for.
+func deleteVaultBundle(c Connector, vault VaultRef, vb vaultBundle) error {
+	return c.Delete(vault, vb.Item)
+}

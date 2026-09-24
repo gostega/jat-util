@@ -31,6 +31,7 @@ var opAllowed = [][2]string{
 	{"item", "list"},
 	{"document", "create"},
 	{"document", "get"},
+	{"item", "delete"},
 }
 
 // opExec is swapped out in tests. Everything goes through opRun first.
@@ -147,5 +148,10 @@ func (onePassword) Store(vault VaultRef, bundlePath, title string, man Manifest)
 		"--file-name", bundleFileName(man.Key),
 		"--tags", migrateTag+","+migrateKeyTag+man.Key,
 		"--format", "json")
+	return err
+}
+
+func (onePassword) Delete(vault VaultRef, it storedItem) error {
+	_, err := opRun("item", "delete", it.ID, "--vault", vault.ID)
 	return err
 }

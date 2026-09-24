@@ -92,7 +92,7 @@ func usage() {
   jat migrate inspect <bundle> | --key <key> [--files]
                                      what a bundle holds, without applying it
   jat migrate cleanup [<key>] [--show] [--yes]
-                                     delete the backups a receive left behind
+                                     tidy up backups here and migrations in the vault
   jat vault [set [--manager 1password|bitwarden] [<name or id>]]
                                      the private password-manager vault jat may use
   jat update [--check]               replace this binary with the latest release

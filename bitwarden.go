@@ -65,6 +65,7 @@ var bwAllowed = [][2]string{
 	{"create", "item"},
 	{"create", "attachment"},
 	{"get", "attachment"},
+	{"delete", "item"},
 }
 
 var bwExec = func(args ...string) ([]byte, error) {
@@ -340,4 +341,12 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, b, 0o600)
+}
+
+// Delete moves the note (and its attachment) to Bitwarden's trash, which is
+// what `bw delete item` does without --permanent; the trash empties itself
+// after 30 days and gives a mistake a way back.
+func (bitwarden) Delete(vault VaultRef, it storedItem) error {
+	_, err := bwRun("delete", "item", it.ID)
+	return err
 }

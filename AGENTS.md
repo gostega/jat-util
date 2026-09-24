@@ -27,7 +27,7 @@ Flat package `main`, one file per concern:
 | `transfer.go` | bundle format, the serialiser, and the entry-name guard |
 | `migrate.go` | the `migrate` wizard, `send`, and its transports (file, 1password) |
 | `receive.go` | `migrate receive`: classify a bundle against disk, then write what was ticked |
-| `cleanup.go` | backups of overwritten files, their log, and `migrate cleanup` |
+| `cleanup.go` | backups of overwritten files, their log, and `migrate cleanup` (local backups and vault migrations) |
 | `inspect.go` | `migrate inspect`: a bundle's contents on stdout, never file contents |
 | `connector.go` | the `Connector` interface, the shared read gate `jatWrote`, and the title pattern |
 | `onepassword.go` | the 1Password connector (`op`) and its allowlist |

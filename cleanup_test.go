@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -126,5 +128,64 @@ func TestSendLeavesBackupsBehind(t *testing.T) {
 	}
 	if n != 3 {
 		t.Errorf("bundle holds %d files, want the 3 real ones", n)
+	}
+}
+
+// Cleanup reaches the vault only through the same gate as receive: an item
+// is deletable only if jatWrote accepts it, and only when chosen.
+func TestCleanupDeletesVaultMigrationsThroughTheGate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := saveConfig(Config{Profile: "debian", Host: "h", Vault: &VaultRef{Manager: "1password", ID: "v1", Name: "Private"}}); err != nil {
+		t.Fatal(err)
+	}
+	items := []opItem{
+		item("mine", "jat/migrate/7f3a/old-mac/james", "DOCUMENT", "v1", "jat-migrate", "jat-migrate-7f3a"),
+		item("other", "jat/migrate/0000/old-mac/james", "DOCUMENT", "v1", "jat-migrate", "jat-migrate-0000"),
+		item("not-mine", "My bank login", "DOCUMENT", "v1", "jat-migrate", "jat-migrate-7f3a"),
+	}
+	b, _ := json.Marshal(items)
+	f := &fakeOp{replies: map[string]string{"item list": string(b), "vault list": `[]`, "item delete": ``}}
+	f.install(t)
+	writeHome(t, home, map[string]string{
+		".zshrc.pre-jat-7f3a": "b", ".jat/backups/7f3a": ".zshrc.pre-jat-7f3a\n",
+	})
+
+	// --show touches nothing.
+	if err := migrateCleanup([]string{"7f3a", "--show"}); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("item delete") != 0 {
+		t.Fatal("--show deleted from the vault")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".zshrc.pre-jat-7f3a")); err != nil {
+		t.Fatal("--show deleted a backup")
+	}
+
+	if err := migrateCleanup([]string{"7f3a", "--yes"}); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("item delete") != 1 {
+		t.Fatalf("item delete ran %d times, want 1", f.count("item delete"))
+	}
+	for _, c := range f.calls {
+		if c[0] == "item" && c[1] == "delete" && (c[2] != "mine" || !slices.Contains(c, "v1")) {
+			t.Errorf("deleted the wrong thing or outside the vault: %v", c)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".zshrc.pre-jat-7f3a")); err == nil {
+		t.Error("local backup for the key survived")
+	}
+}
+
+func TestCleanupWithNoTerminalAndNoKeyOnlyLists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeHome(t, home, map[string]string{".zshrc.pre-jat-7f3a": "b", ".jat/backups/7f3a": ".zshrc.pre-jat-7f3a\n"})
+	if err := migrateCleanup(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".zshrc.pre-jat-7f3a")); err != nil {
+		t.Error("a bare cleanup without a terminal deleted something")
 	}
 }
