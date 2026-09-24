@@ -5,7 +5,13 @@ trailers (`Changelog:`, `Release-Note:`, `Upgrade:`); `make changelog` prints
 the unreleased block. Every entry ends with an `Upgrade:` line, even when it
 is "nothing to do".
 
-## v0.3.1 — 2026-09-24
+## Unreleased
+
+### Added
+
+- `jat migrate cleanup` opens a menu to remove finished migrations from your
+  password manager as well as the local backups; `cleanup <key>` takes both
+  halves of one migration.
 
 ### Changed
 
@@ -13,6 +19,8 @@ is "nothing to do".
   `migrate send`, `inspect --key`, `receive`) against op 2.39.0 on a
   1Password Business account. Bitwarden is still exercised against stand-ins
   only.
+- The preview pane's list column scales with the terminal width, and
+  identical items show their contents instead of a one-line note.
 
 Upgrade: nothing to do
 
@@ -35,8 +43,9 @@ Upgrade: nothing to do
   refusing any vault that is not yours alone.
 - `jat migrate send|receive --transport vault` moves a bundle through that
   vault, and `jat migrate inspect --key` looks inside one. 1Password (`op`)
-  and Bitwarden (`bw`) are supported. **Neither has yet been run against its
-  real CLI**; both are exercised against stand-ins only.
+  and Bitwarden (`bw`) are supported. At this release neither had been run
+  against its real CLI; both were exercised against stand-ins only (1Password
+  was verified afterwards — see Unreleased).
 
 ### Changed
 
