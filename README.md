@@ -6,6 +6,46 @@ jobs turn out to be worth a subcommand. Migration is one function among many.
 Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
 `inspect`, `cleanup`), `vault`, `update`, `release`, `version`.
 
+## INSTALL
+
+Prebuilt binaries for macOS and Linux (arm64 and amd64) are attached to each
+[release](https://github.com/gostega/jat-util/releases). No account needed.
+
+```sh
+# macOS on Apple silicon; use darwin-amd64, linux-arm64 or linux-amd64 as fits
+mkdir -p ~/.local/bin
+curl -fsSL -o ~/.local/bin/jat \
+  https://github.com/gostega/jat-util/releases/latest/download/jat-darwin-arm64
+chmod +x ~/.local/bin/jat
+jat version
+jat init                               # once: saves the OS profile and this machine's name
+```
+
+If `jat` is not found afterwards, `~/.local/bin` is not on your PATH:
+`echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc` (or `~/.bashrc`)
+and open a new shell. macOS may also quarantine a downloaded binary; if it
+refuses to run, `xattr -d com.apple.quarantine ~/.local/bin/jat`.
+
+From source (needs Go, the version in `go.mod`):
+
+```sh
+git clone https://github.com/gostega/jat-util && cd jat-util
+make install                           # builds and puts jat in ~/.local/bin
+```
+
+## UPDATE
+
+```sh
+jat update --check                     # what is installed, what is latest
+jat update                             # replace this binary with the latest release
+```
+
+`update` swaps the file in place by rename, so it is safe to run from the
+binary being replaced. It only updates a binary that came from a release: a
+build from source reports `dev` (or a bare commit hash) and is left alone —
+rebuild with `make install` instead. Release candidates (`-rcN` tags) are
+built by CI but never published, so `update` never offers one.
+
 ## ABOUT
 
 - OS-agnostic, opinionated per profile. Profile (`macos`, `debian`, ...) is
