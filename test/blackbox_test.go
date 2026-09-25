@@ -226,3 +226,56 @@ func TestNoTerminalNeverPrompts(t *testing.T) {
 		}
 	}
 }
+
+// A fresh download installs itself: onto a PATH dir if one is writable,
+// else ~/.local/bin with the PATH line added to the shell rc, then removes
+// the download and runs init.
+func TestInstallSelf(t *testing.T) {
+	home := t.TempDir()
+	dl := filepath.Join(t.TempDir(), "jat")
+	if err := exec.Command("cp", jat, dl).Run(); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing on PATH is writable-and-ours, so ~/.local/bin is chosen.
+	env := []string{"SHELL=/bin/zsh"}
+	cmd := exec.Command(dl, "install", "--self", "--show")
+	cmd.Env = append([]string{"HOME=" + home, "PATH=/usr/bin:/bin"}, env...)
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "would add to "+filepath.Join(home, ".zshrc")) {
+		t.Fatalf("--show: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".local/bin/jat")); err == nil {
+		t.Fatal("--show installed something")
+	}
+
+	cmd = exec.Command("./jat", "install", "--self", "--yes")
+	cmd.Dir = filepath.Dir(dl)
+	cmd.Env = append([]string{"HOME=" + home, "PATH=/usr/bin:/bin"}, env...)
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("install --self: %v\n%s", err, out)
+	}
+	installed := filepath.Join(home, ".local/bin/jat")
+	if info, err := os.Stat(installed); err != nil || info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("binary not installed executable: %v", err)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(home, ".zshrc")), `export PATH="$HOME/.local/bin:$PATH"`) {
+		t.Error("PATH line not added to .zshrc")
+	}
+	if _, err := os.Stat(dl); err == nil {
+		t.Error("the download was left behind")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".jat/config.json")); err != nil {
+		t.Error("init did not run")
+	}
+	// Running the installed copy again is a no-op.
+	cmd = exec.Command(installed, "install", "jat")
+	cmd.Env = []string{"HOME=" + home, "PATH=" + filepath.Join(home, ".local/bin") + ":/usr/bin:/bin"}
+	if out, err := cmd.CombinedOutput(); err != nil || !strings.Contains(string(out), "already installed") {
+		t.Errorf("second install: %v\n%s", err, out)
+	}
+	// A binary that is not ./jat is never removed, wherever it lives.
+	if _, err := os.Stat(jat); err != nil {
+		t.Fatal("self-install removed a binary that was not the ./jat download")
+	}
+}

@@ -8,34 +8,26 @@ Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
 
 ## INSTALL
 
-Prebuilt binaries for macOS and Linux (arm64 and amd64) are attached to each
-[release](https://github.com/gostega/jat-util/releases). No account needed.
-Pick the asset for your machine — `jat-darwin-arm64` (Apple silicon),
-`jat-darwin-amd64`, `jat-linux-arm64` or `jat-linux-amd64` — and paste the
-block as one piece; it is written to survive an interactive zsh, where `#`
-comments are not comments.
+Prebuilt binaries for macOS and Linux are attached to each
+[release](https://github.com/gostega/jat-util/releases); no account needed.
+Download the one for your machine and let it install itself:
 
 ```sh
-mkdir -p ~/.local/bin
-curl -fsSL -o ~/.local/bin/jat https://github.com/gostega/jat-util/releases/latest/download/jat-darwin-arm64
-chmod +x ~/.local/bin/jat
-~/.local/bin/jat version
+curl -fsSL -o jat https://github.com/gostega/jat-util/releases/latest/download/jat-darwin-arm64
+chmod +x jat
+./jat install --self
 ```
 
-Then put `~/.local/bin` on your PATH if it is not already — it is on most
-Linux desktops, **not on macOS**:
+Assets: `jat-darwin-arm64` (Apple silicon), `jat-darwin-amd64`,
+`jat-linux-arm64`, `jat-linux-amd64`.
 
-```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-exec zsh
-jat init
-```
-
-(`~/.bashrc` and `exec bash` on bash.) Or skip PATH altogether by installing
-somewhere already on it: replace `~/.local/bin` above with `/usr/local/bin`
-(use `sudo` for the `curl` and `chmod`) or, on a Mac with Homebrew,
-`$(brew --prefix)/bin`. If macOS refuses to run the downloaded binary,
-`xattr -d com.apple.quarantine ~/.local/bin/jat`.
+`install --self` copies the binary into the first of `~/.local/bin`,
+Homebrew's `bin` or `/usr/local/bin` that is on your PATH and writable. If
+none is (a fresh Mac has `~/.local/bin` off PATH), it uses `~/.local/bin`
+and offers to add the PATH line to your shell's rc file — `--yes` skips the
+question, `--show` only says what it would do. It also clears macOS's
+quarantine flag, removes the download, and runs `jat init` if this machine
+has no config yet. Then open a new shell and `jat version`.
 
 From source (needs Go, the version in `go.mod`):
 

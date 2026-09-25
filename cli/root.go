@@ -85,6 +85,7 @@ func usage() {
   jat init [--profile <name>] [--host <name>]
                                      save the OS profile and this machine's name
   jat install <tool> [--<method>] [--show]
+  jat install --self [--yes]         put this binary on your PATH (a fresh download installs itself)
   jat list                           known tools and their default method
   jat migrate send [--transport file|vault] [--out <file>] [--all] [--include-secrets] [--show]
                                      pick config and bundle it for another machine
@@ -139,14 +140,19 @@ func cmdInit(args []string) error {
 func cmdInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	show := fs.Bool("show", false, "print the command that would run, and where to verify it")
+	self := fs.Bool("self", false, "install this binary onto your PATH (same as: jat install jat)")
+	yes := fs.Bool("yes", false, "with --self: add to PATH without asking")
 	var override string
 	for _, m := range allMethods {
 		fs.BoolFunc(m, "force install via "+m, func(string) error { override = m; return nil })
 	}
 	fs.Parse(flagsFirst(fs, args))
 
+	if *self || (fs.NArg() == 1 && fs.Arg(0) == "jat") {
+		return selfInstall(*show, *yes)
+	}
 	if fs.NArg() != 1 {
-		return errors.New("usage: jat install <tool> [--<method>] [--show]")
+		return errors.New("usage: jat install <tool> [--<method>] [--show]  |  jat install --self")
 	}
 	name := fs.Arg(0)
 	tool, ok := tools[name]
