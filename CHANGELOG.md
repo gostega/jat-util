@@ -5,10 +5,14 @@ trailers (`Changelog:`, `Release-Note:`, `Upgrade:`); `make changelog` prints
 the unreleased block. Every entry ends with an `Upgrade:` line, even when it
 is "nothing to do".
 
-## Unreleased
+## v0.4.0 — 2026-09-25
 
 ### Added
 
+- `jat install --self` (or `jat install jat`): a freshly downloaded binary
+  puts itself on your PATH — into `~/.local/bin`, Homebrew's `bin` or
+  `/usr/local/bin`, adding the PATH line to your shell rc if none is on PATH —
+  clears macOS quarantine, removes the download and runs `init`.
 - `jat migrate cleanup` opens a menu to remove finished migrations from your
   password manager as well as the local backups; `cleanup <key>` takes both
   halves of one migration.
@@ -21,6 +25,9 @@ is "nothing to do".
   only.
 - The preview pane's list column scales with the terminal width, and
   identical items show their contents instead of a one-line note.
+- The module is now `github.com/gostega/jat-util`, so
+  `go install github.com/gostega/jat-util@latest` works. Source moved into
+  `cli/`, with black-box tests in `test/`; no user-facing change.
 
 Upgrade: nothing to do
 
