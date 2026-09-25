@@ -1,0 +1,20 @@
+#!/bin/bash
+# Stand-in for the 1Password CLI, for black-box tests. Speaks just enough of
+# op's JSON to carry one migration through the vault transport. Values are
+# invented; nothing here is a real vault.
+store="${FAKE_OP_STORE:?}"
+case "$1 $2" in
+  "vault get")   if [ "$3" = "Shared" ]; then echo '{"id":"s1","name":"Shared","type":"USER_CREATED"}'
+                 else echo '{"id":"v1","name":"Private","type":"PERSONAL"}'; fi ;;
+  "vault list")  echo '[{"id":"v1","name":"Private"},{"id":"s1","name":"Shared"}]' ;;
+  "document create")
+                 cp "$3" "$store/doc"; shift 3
+                 while [ $# -gt 0 ]; do case $1 in --title) echo "$2" > "$store/title";; --tags) echo "$2" > "$store/tags";; esac; shift; done
+                 echo '{"id":"d1"}' ;;
+  "item list")   if [ -f "$store/title" ]; then t=$(cat "$store/title"); k=${t#jat/migrate/}; k=${k%%/*}
+                   echo "[{\"id\":\"d1\",\"title\":\"$t\",\"tags\":[\"jat-migrate\",\"jat-migrate-$k\"],\"category\":\"DOCUMENT\",\"vault\":{\"id\":\"v1\"},\"created_at\":\"2026-09-24T08:00:00Z\"}]"
+                 else echo '[]'; fi ;;
+  "document get") while [ $# -gt 0 ]; do [ "$1" = "--out-file" ] && cp "$store/doc" "$2"; shift; done ;;
+  "item delete") rm -f "$store/doc" "$store/title" "$store/tags" ;;
+  *) echo "fake op: unexpected: $*" >&2; exit 1 ;;
+esac

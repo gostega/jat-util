@@ -1,4 +1,4 @@
-package main
+package cli
 
 // Config items jat knows how to carry between machines. Paths are relative to
 // $HOME. This is a curated list, not a sweep of the home directory — if it

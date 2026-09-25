@@ -1,4 +1,4 @@
-package main
+package cli
 
 // Tool is one installable thing. Methods maps an install method to the shell
 // command that performs it; an empty command means the method can't be

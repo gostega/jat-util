@@ -21,10 +21,17 @@ jat version
 jat init                               # once: saves the OS profile and this machine's name
 ```
 
-If `jat` is not found afterwards, `~/.local/bin` is not on your PATH:
-`echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc` (or `~/.bashrc`)
-and open a new shell. macOS may also quarantine a downloaded binary; if it
-refuses to run, `xattr -d com.apple.quarantine ~/.local/bin/jat`.
+`~/.local/bin` is on PATH by default on most Linux desktops but **not on
+macOS**. If `jat` is not found afterwards, add it and open a new shell:
+
+```sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc    # ~/.bashrc on bash
+```
+
+Or install somewhere already on PATH — `/usr/local/bin` works everywhere and
+Homebrew's `$(brew --prefix)/bin` on a Mac — by changing the `-o` path above.
+macOS may also quarantine a downloaded binary; if it refuses to run,
+`xattr -d com.apple.quarantine ~/.local/bin/jat`.
 
 From source (needs Go, the version in `go.mod`):
 

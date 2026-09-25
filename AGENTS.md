@@ -17,11 +17,16 @@ Subcommands live in `main.go`: `init`, `install`, `list`, `migrate` (`send`,
 
 ## Layout
 
-Flat package `main`, one file per concern:
+`main.go` at the root is three lines; everything lives in `cli/` (package
+`cli`), one file per concern, with unit tests beside the code they test —
+Go only lets a test see a package's unexported names from the same
+directory. `test/` holds black-box tests that build the binary and drive it
+(real files in a scratch `$HOME`, a pseudo-terminal for the menus, a
+stand-in `op` in `test/testdata/`).
 
-| File | Holds |
+| File (in `cli/`) | Holds |
 |---|---|
-| `main.go` | entry point, subcommand dispatch, profile detection, version stamp |
+| `root.go` | `Main()`: subcommand dispatch, profile detection, version stamp |
 | `tools.go` | the tool → install-method table (seed data, curated by hand) |
 | `configs.go` | the curated list of config paths `migrate` may carry |
 | `transfer.go` | bundle format, the serialiser, and the entry-name guard |
@@ -39,9 +44,14 @@ Flat package `main`, one file per concern:
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |
 
-Tests sit next to the code (`*_test.go`). `TestEveryToolResolvesSomewhere`
-fails if a seeded tool cannot resolve on any profile, so dead table rows are
-caught.
+`cli/*_test.go` are the unit tests; `TestEveryToolResolvesSomewhere` fails if
+a seeded tool cannot resolve on any profile, so dead table rows are caught.
+`test/*_test.go` are the black-box tests; they take ~10 s because they drive
+a pseudo-terminal and wait for it to settle. Both run under `make test` and
+in CI. **Never let a test depend on which CLIs the machine has**: the
+Bitwarden and 1Password code is exercised through swappable `bwExec` /
+`opExec` (unit) or a stand-in binary on PATH (black-box), and a test that
+reached the real lookup passed here and failed in CI once already.
 
 ## Build, test, run
 
@@ -58,8 +68,9 @@ only for non-`rc` tags.
 
 ## Rules that are easy to get wrong
 
-- **Version is never a literal in source.** `Version` and `Commit` are set by
-  `ldflags` from the Makefile and the release workflow. A binary reporting
+- **Version is never a literal in source.** `cli.Version` and `cli.Commit` are
+  set by `ldflags` (`-X github.com/gostega/jat-util/cli.Version=…`) from the
+  Makefile and the release workflow. A binary reporting
   `dev` was built from source and `jat update` deliberately will not replace it.
 - **Release asset names are a contract.** `assetName()` in `update.go` must
   match what the workflow uploads. Change both or neither.

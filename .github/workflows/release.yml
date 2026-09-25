@@ -55,7 +55,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           COMMIT=${GITHUB_SHA::7}
-          go build -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT}" \
+          go build -ldflags "-X github.com/gostega/jat-util/cli.Version=${VERSION} -X github.com/gostega/jat-util/cli.Commit=${COMMIT}" \
             -o jat-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - uses: softprops/action-gh-release@v2
