@@ -10,34 +10,38 @@ Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
 
 Prebuilt binaries for macOS and Linux (arm64 and amd64) are attached to each
 [release](https://github.com/gostega/jat-util/releases). No account needed.
+Pick the asset for your machine — `jat-darwin-arm64` (Apple silicon),
+`jat-darwin-amd64`, `jat-linux-arm64` or `jat-linux-amd64` — and paste the
+block as one piece; it is written to survive an interactive zsh, where `#`
+comments are not comments.
 
 ```sh
-# macOS on Apple silicon; use darwin-amd64, linux-arm64 or linux-amd64 as fits
 mkdir -p ~/.local/bin
-curl -fsSL -o ~/.local/bin/jat \
-  https://github.com/gostega/jat-util/releases/latest/download/jat-darwin-arm64
+curl -fsSL -o ~/.local/bin/jat https://github.com/gostega/jat-util/releases/latest/download/jat-darwin-arm64
 chmod +x ~/.local/bin/jat
-jat version
-jat init                               # once: saves the OS profile and this machine's name
+~/.local/bin/jat version
 ```
 
-`~/.local/bin` is on PATH by default on most Linux desktops but **not on
-macOS**. If `jat` is not found afterwards, add it and open a new shell:
+Then put `~/.local/bin` on your PATH if it is not already — it is on most
+Linux desktops, **not on macOS**:
 
 ```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc    # ~/.bashrc on bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+exec zsh
+jat init
 ```
 
-Or install somewhere already on PATH — `/usr/local/bin` works everywhere and
-Homebrew's `$(brew --prefix)/bin` on a Mac — by changing the `-o` path above.
-macOS may also quarantine a downloaded binary; if it refuses to run,
+(`~/.bashrc` and `exec bash` on bash.) Or skip PATH altogether by installing
+somewhere already on it: replace `~/.local/bin` above with `/usr/local/bin`
+(use `sudo` for the `curl` and `chmod`) or, on a Mac with Homebrew,
+`$(brew --prefix)/bin`. If macOS refuses to run the downloaded binary,
 `xattr -d com.apple.quarantine ~/.local/bin/jat`.
 
 From source (needs Go, the version in `go.mod`):
 
 ```sh
 git clone https://github.com/gostega/jat-util && cd jat-util
-make install                           # builds and puts jat in ~/.local/bin
+make install
 ```
 
 ## UPDATE
