@@ -49,6 +49,28 @@ build from source reports `dev` (or a bare commit hash) and is left alone —
 rebuild with `make install` instead. Release candidates (`-rcN` tags) are
 built by CI but never published, so `update` never offers one.
 
+## INSTALLING TOOLS
+
+```sh
+jat install                  # menu: tick what you want, grouped by tab, with the dependency tree
+jat install gh               # one tool by this profile's default method
+jat install gh --curlscript  # …or a specific method
+jat install --all            # everything jat knows that is not installed yet
+jat install --all --dry-run  # the plan, in dependency order, running nothing (--preview, --show)
+```
+
+- The menu has a tab per group (Apps, Package managers, CLI tools, Runtimes,
+  Other) plus All; `tab`/`shift+tab` switch. Rows are drawn as the dependency
+  tree: casks and formulae under `homebrew`, runtimes under `mise`, npm tools
+  under `node`. Ticking a tool ticks what it needs (shown in amber);
+  unticking it lets go of anything nothing else needs.
+- Tools already on this machine are marked `installed`, greyed and left out
+  of `ctrl+a` / `ctrl+t` (invert), though you can tick one to reinstall.
+- Manual and App Store tools can be ticked; they are listed with their URLs
+  at the end of the run instead of being executed.
+- Installs run parents first, stream each command's output, carry on past a
+  failure, and skip anything that needed the failed tool.
+
 ## ABOUT
 
 - OS-agnostic, opinionated per profile. Profile (`macos`, `debian`, ...) is

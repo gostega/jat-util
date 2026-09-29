@@ -84,7 +84,10 @@ func usage() {
 	fmt.Fprint(os.Stderr, `usage:
   jat init [--profile <name>] [--host <name>]
                                      save the OS profile and this machine's name
-  jat install <tool> [--<method>] [--show]
+  jat install                        menu: pick tools by group, see what depends on what
+  jat install <tool> [--<method>]    one tool by this profile's default method
+  jat install --all                  everything jat knows that is not yet installed
+      … [--dry-run|--preview|--show] print the plan, run nothing
   jat install --self [--yes]         put this binary on your PATH (a fresh download installs itself)
   jat list                           known tools and their default method
   jat migrate send [--transport file|vault] [--out <file>] [--all] [--include-secrets] [--show]
@@ -139,7 +142,10 @@ func cmdInit(args []string) error {
 
 func cmdInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
-	show := fs.Bool("show", false, "print the command that would run, and where to verify it")
+	show := fs.Bool("show", false, "print what would run, and run nothing (same as --dry-run)")
+	dryRun := fs.Bool("dry-run", false, "print the plan and run nothing")
+	preview := fs.Bool("preview", false, "same as --dry-run")
+	all := fs.Bool("all", false, "every tool not already installed, skipping the menu")
 	self := fs.Bool("self", false, "install this binary onto your PATH (same as: jat install jat)")
 	yes := fs.Bool("yes", false, "with --self: add to PATH without asking")
 	var override string
@@ -147,53 +153,202 @@ func cmdInstall(args []string) error {
 		fs.BoolFunc(m, "force install via "+m, func(string) error { override = m; return nil })
 	}
 	fs.Parse(flagsFirst(fs, args))
+	plan := *show || *dryRun || *preview
 
 	if *self || (fs.NArg() == 1 && fs.Arg(0) == "jat") {
-		return selfInstall(*show, *yes)
-	}
-	if fs.NArg() != 1 {
-		return errors.New("usage: jat install <tool> [--<method>] [--show]  |  jat install --self")
-	}
-	name := fs.Arg(0)
-	tool, ok := tools[name]
-	if !ok {
-		return fmt.Errorf("unknown tool %q (try: jat list)", name)
+		return selfInstall(plan, *yes)
 	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
-	method, cmd, err := resolve(tool, cfg.Profile, override)
+
+	// One named tool, the original form: resolve, show or run.
+	if fs.NArg() == 1 && !*all {
+		name := fs.Arg(0)
+		tool, ok := tools[name]
+		if !ok {
+			return fmt.Errorf("unknown tool %q (try: jat list)", name)
+		}
+		method, cmd, err := resolve(tool, cfg.Profile, override)
+		if err != nil {
+			return err
+		}
+		if plan {
+			fmt.Printf("tool:    %s\nprofile: %s\nmethod:  %s\n", name, cfg.Profile, method)
+			if cmd == "" {
+				fmt.Println("command: (not automatable)")
+			} else {
+				fmt.Printf("command: %s\n", cmd)
+			}
+			if tool.Docs != "" {
+				fmt.Printf("verify:  %s\n", tool.Docs)
+			}
+			if deps := toolDeps(name, cfg.Profile); len(deps) > 0 {
+				fmt.Printf("needs:   %s\n", strings.Join(deps, ", "))
+			}
+			return nil
+		}
+		if cmd == "" {
+			fmt.Printf("%s has no automatable install on %s (%s).\n", name, cfg.Profile, method)
+			if tool.Docs != "" {
+				fmt.Printf("Get it here: %s\n", tool.Docs)
+			}
+			return nil
+		}
+		fmt.Printf("$ %s\n", cmd)
+		c := exec.Command("sh", "-c", cmd)
+		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+		return c.Run()
+	}
+	if fs.NArg() > 1 {
+		return errors.New("usage: jat install [<tool>] [--<method>] [--all] [--dry-run|--preview|--show]  |  jat install --self")
+	}
+
+	// No tool named: everything not yet installed (--all), or the menu.
+	var chosen []string
+	if *all {
+		for _, n := range slices.Sorted(maps(tools)) {
+			if _, _, err := resolve(tools[n], cfg.Profile, ""); err == nil && !installed(n) {
+				chosen = append(chosen, n)
+			}
+		}
+	} else {
+		if !stdinIsTerminal() {
+			return errors.New("usage: jat install <tool> — or --all to install everything not yet here (add --dry-run to see the plan)")
+		}
+		picked, ok, err := runPicker("What should be installed on this machine?",
+			fmt.Sprintf("profile %s · host %s · ticking a tool ticks what it needs", cfg.Profile, cfg.Host),
+			installRows(cfg.Profile))
+		if err != nil {
+			return err
+		}
+		if !ok || len(picked) == 0 {
+			releasePickerScreen()
+			fmt.Fprintln(os.Stderr, "Nothing chosen — nothing installed.")
+			return nil
+		}
+		chosen = picked
+	}
+	releasePickerScreen()
+	if len(chosen) == 0 {
+		fmt.Println("everything jat knows is already installed")
+		return nil
+	}
+	steps, err := buildPlan(chosen, cfg.Profile)
 	if err != nil {
 		return err
 	}
-
-	if *show {
-		fmt.Printf("tool:    %s\nprofile: %s\nmethod:  %s\n", name, cfg.Profile, method)
-		if cmd == "" {
-			fmt.Println("command: (not automatable)")
-		} else {
-			fmt.Printf("command: %s\n", cmd)
-		}
-		if tool.Docs != "" {
-			fmt.Printf("verify:  %s\n", tool.Docs)
-		}
+	if plan {
+		printPlan(steps, cfg.Profile)
 		return nil
 	}
+	return runPlan(steps, cfg.Profile)
+}
 
-	if cmd == "" {
-		if method == "appstore" {
-			fmt.Printf("%s: install from the Mac App Store\n", name)
-			return nil
+// installRows is the tool table as picker rows: the dependency tree with
+// glyphs, one tab per group, installed tools dimmed, and a preview per
+// tool showing the command, docs, and what it needs and is needed by.
+func installRows(profile string) []PickRow {
+	tree := depTree(profile)
+	// Glyphs: a row's own connector, preceded by the trunk lines of its
+	// ancestors that still have siblings below.
+	var rows []PickRow
+	openAt := map[int]bool{} // depth → an ancestor at that depth has more siblings
+	for _, tr := range tree {
+		prefix := ""
+		for d := 0; d < tr.Depth-1; d++ {
+			if openAt[d] {
+				prefix += "│  "
+			} else {
+				prefix += "   "
+			}
 		}
-		fmt.Printf("%s: manual install — download from %s\n", name, tool.Docs)
-		return nil
-	}
+		if tr.Depth > 0 {
+			if tr.Last {
+				prefix += "└─ "
+			} else {
+				prefix += "├─ "
+			}
+		}
+		openAt[tr.Depth-1] = !tr.Last
+		if tr.Depth == 0 {
+			openAt = map[int]bool{}
+		}
 
-	fmt.Printf("==> [%s] %s\n", method, cmd)
-	c := exec.Command("sh", "-c", cmd)
-	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return c.Run()
+		name := tr.Name
+		t := tools[name]
+		method, cmd, err := resolve(t, profile, "")
+		note, colour := "", ""
+		switch {
+		case err != nil:
+			note, colour = "no install method on "+profile, "9"
+		case cmd == "":
+			where := t.Docs
+			if where == "" && method == "appstore" {
+				where = "App Store"
+			}
+			note, colour = fmt.Sprintf("%-9s %s", method, orUnknown(where)), "11"
+		default:
+			note = fmt.Sprintf("%-9s %s", method, cmd)
+		}
+		isIn := installed(name)
+		if isIn {
+			note, colour = "installed", "10"
+		}
+		rows = append(rows, PickRow{
+			ID: name, Label: name, Note: note, ShortNote: method, NoteColor: colour,
+			Group: t.Group, Tree: prefix, Needs: toolDeps(name, profile),
+			// Installed, or uninstallable here: greyed and left out of
+			// select-all, but still tickable on purpose.
+			Dim:     isIn || err != nil,
+			Preview: func() Preview { return installPreview(name, profile) },
+		})
+	}
+	return rows
+}
+
+func installPreview(name, profile string) Preview {
+	t := tools[name]
+	p := Preview{Title: name}
+	method, cmd, err := resolve(t, profile, "")
+	switch {
+	case err != nil:
+		p.Lines = append(p.Lines, pl('!', err.Error()))
+	case cmd == "":
+		p.Lines = append(p.Lines, head("method  "+method), dim("not automatable — get it from:"), pl(' ', orUnknown(t.Docs)))
+	default:
+		p.Lines = append(p.Lines, head("method  "+method), pl(' ', cmd))
+		if t.Docs != "" {
+			p.Lines = append(p.Lines, dim(""), dim("verify: "+t.Docs))
+		}
+	}
+	if installed(name) {
+		p.Lines = append(p.Lines, dim(""), pl('+', "installed on this machine"))
+	}
+	var others []string
+	for m, c := range t.Methods {
+		if m != method && c != "" {
+			others = append(others, m)
+		}
+	}
+	slices.Sort(others)
+	if len(others) > 0 {
+		p.Lines = append(p.Lines, dim(""), dim("also available via --"+strings.Join(others, ", --")))
+	}
+	if deps := toolDeps(name, profile); len(deps) > 0 {
+		p.Lines = append(p.Lines, dim(""), head("needs"), pl(' ', strings.Join(deps, ", ")))
+	}
+	var by []string
+	for _, n := range slices.Sorted(maps(tools)) {
+		if slices.Contains(toolDeps(n, profile), name) {
+			by = append(by, n)
+		}
+	}
+	if len(by) > 0 {
+		p.Lines = append(p.Lines, dim(""), head("needed by"), pl(' ', strings.Join(by, ", ")))
+	}
+	return p
 }
 
 func cmdList(args []string) error {

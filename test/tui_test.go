@@ -200,3 +200,55 @@ func TestSecretItemsNeverRenderContentsInTheTerminal(t *testing.T) {
 		t.Error("secret item was never shown as hidden; did the walk reach it?")
 	}
 }
+
+// Bare `jat install`: group tabs, the dependency tree, installed rows
+// dimmed, and ticking a leaf ticks what it needs.
+func TestInstallMenu(t *testing.T) {
+	home := t.TempDir()
+	writeFiles(t, home, map[string]string{".jat/config.json": `{"profile":"macos","host":"test-mac"}`})
+	s := startTUI(t, home, 130, 45, "install")
+	frame := plain(s.settle(300*time.Millisecond) + s.all.String())
+	for _, want := range []string{"[ All", "Apps", "Package managers", "Runtimes", "homebrew", "├─ mise", "tab/shift+tab group", "ctrl+t invert"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("menu missing %q:\n%s", want, frame)
+		}
+	}
+	// ruby hangs off mise which hangs off homebrew.
+	if !regexp.MustCompile(`│\s+[├└]─ ruby`).MatchString(frame) {
+		t.Errorf("ruby not drawn under mise:\n%s", frame)
+	}
+
+	// Runtimes tab, then tick ruby: mise and homebrew come along, explained.
+	s.key("\t")
+	s.key("\t")
+	s.key("\t")
+	frame = plain(s.key("\t"))
+	if !strings.Contains(frame, "[ Runtimes") {
+		t.Fatalf("four tabs did not reach Runtimes:\n%s", frame)
+	}
+	// Filter to ruby: the tree keeps its ancestors above it (homebrew, mise),
+	// so the cursor reaches ruby with two downs. Frames are partial redraws,
+	// so nothing here counts rows in a frame.
+	s.key("r")
+	s.key("u")
+	s.key("b")
+	s.key("y")
+	s.key(down)
+	s.key(down)
+	frame = plain(s.key(" "))
+	if !strings.Contains(frame, "3 of") {
+		t.Errorf("ticking ruby should tick mise and homebrew too (3 selected):\n%s", frame)
+	}
+	if !strings.Contains(frame, "needed by a ticked row") {
+		t.Errorf("auto-ticked rows not explained:\n%s", frame)
+	}
+	frame = plain(s.key(right))
+	if !strings.Contains(frame, "mise use -g ruby") || !strings.Contains(frame, "needs") {
+		t.Errorf("preview for ruby missing command or needs:\n%s", frame)
+	}
+	s.key(esc)
+	s.key(esc)
+	if !strings.Contains(plain(s.all.String()), "Nothing chosen") {
+		t.Error("cancel message missing")
+	}
+}

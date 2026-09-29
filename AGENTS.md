@@ -28,7 +28,8 @@ stand-in `op` in `test/testdata/`).
 |---|---|
 | `root.go` | `Main()`: subcommand dispatch, profile detection, version stamp |
 | `selfinstall.go` | `jat install --self`: a downloaded binary puts itself on PATH |
-| `tools.go` | the tool → install-method table (seed data, curated by hand) |
+| `tools.go` | the tool table: group, install methods, dependencies (`Needs`), installed check (`Bin`/`App`) |
+| `plan.go` | dependency graph, installed detection, install order, dry-run plan and the run itself |
 | `configs.go` | the curated list of config paths `migrate` may carry |
 | `transfer.go` | bundle format, the serialiser, and the entry-name guard |
 | `migrate.go` | the `migrate` wizard, `send`, and its transports (file, 1password) |

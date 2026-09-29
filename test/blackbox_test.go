@@ -279,3 +279,27 @@ func TestInstallSelf(t *testing.T) {
 		t.Fatal("self-install removed a binary that was not the ./jat download")
 	}
 }
+
+func TestInstallAllDryRunIsAPlanOnly(t *testing.T) {
+	home := t.TempDir()
+	writeFiles(t, home, map[string]string{".jat/config.json": `{"profile":"macos","host":"test-mac"}`})
+	for _, flag := range []string{"--dry-run", "--preview", "--show"} {
+		out, err := run(t, home, []string{"PATH=/usr/bin:/bin"}, "install", "--all", flag)
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", flag, err, out)
+		}
+		for _, want := range []string{"in dependency order", "→   homebrew", "→   mise", "·   docker"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s plan missing %q:\n%s", flag, want, out)
+			}
+		}
+		if strings.Index(out, "homebrew") > strings.Index(out, "ghostty") {
+			t.Errorf("%s: homebrew should come before the casks that need it", flag)
+		}
+	}
+	// Without a terminal and without --all, bare install explains itself.
+	out, err := run(t, home, nil, "install")
+	if err == nil || !strings.Contains(out, "--all") {
+		t.Errorf("bare install without a terminal: %v\n%s", err, out)
+	}
+}
