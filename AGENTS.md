@@ -63,9 +63,10 @@ make vet
 make install    # copies into ~/.local/bin via rename, safe while jat is running
 ```
 
-Go version floor is whatever `go.mod` declares. CI (`.github/workflows/release.yml`)
-runs vet and test on every push and PR, and publishes cross-platform binaries
-only for non-`rc` tags.
+Go version floor is whatever `go.mod` declares. CI (`.github/workflows/ci.yml`)
+runs vet and test on PRs against `main`. The release workflow
+(`.github/workflows/release.yml`) runs only when a `v*` tag is pushed: vet and
+test, then cross-platform binaries published only for non-`rc` tags.
 
 ## Rules that are easy to get wrong
 

@@ -1,11 +1,8 @@
-name: build
+name: release
 
 on:
   push:
-    branches: ["main"]
     tags: ["v*"]
-  pull_request:
-    branches: ["main"]
 
 permissions:
   contents: write
