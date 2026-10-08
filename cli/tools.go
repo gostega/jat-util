@@ -6,6 +6,10 @@ package cli
 type Tool struct {
 	Methods map[string]string
 	Docs    string
+	// Prefer, set only from the user's config, is the method that wins over
+	// the profile order; Installer names the user installer behind it.
+	Prefer    string
+	Installer string
 }
 
 // Install method preference per profile: the first method a tool actually has
