@@ -279,3 +279,45 @@ func TestInstallSelf(t *testing.T) {
 		t.Fatal("self-install removed a binary that was not the ./jat download")
 	}
 }
+
+// The issue's own example: a user installer for Claude Code's native script
+// becomes what `jat install claude` runs, --show prints exactly that, and a
+// per-invocation --<method> still overrides it.
+func TestUserInstallerBecomesTheDefault(t *testing.T) {
+	home := t.TempDir()
+	if out, err := run(t, home, nil, "init", "--profile", "macos", "--host", "test"); err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	script := "curl -fsSL https://claude.ai/install.sh | bash"
+	if out, err := run(t, home, nil, "install", "add-installer", "claude-native", "--method", "curlscript", "--command", script); err != nil {
+		t.Fatalf("add-installer: %v\n%s", err, out)
+	}
+	if out, err := run(t, home, nil, "install", "set-default", "claude", "claude-native"); err != nil {
+		t.Fatalf("set-default: %v\n%s", err, out)
+	}
+
+	out, err := run(t, home, nil, "install", "claude", "--show")
+	if err != nil || !strings.Contains(out, "method:  curlscript") || !strings.Contains(out, "command: "+script) {
+		t.Fatalf("install claude --show: %v\n%s", err, out)
+	}
+	out, err = run(t, home, nil, "install", "claude", "--manual", "--show")
+	if err != nil || !strings.Contains(out, "method:  manual") {
+		t.Fatalf("install claude --manual --show: %v\n%s", err, out)
+	}
+	out, _ = run(t, home, nil, "list")
+	if !strings.Contains(out, "curlscript (claude-native)") {
+		t.Errorf("list does not show the user's installer:\n%s", out)
+	}
+
+	// An installer in use cannot be removed out from under its tool.
+	if out, err := run(t, home, nil, "install", "remove-installer", "claude-native"); err == nil {
+		t.Errorf("remove-installer of a default succeeded:\n%s", out)
+	}
+	if out, err := run(t, home, nil, "install", "unset-default", "claude"); err != nil {
+		t.Fatalf("unset-default: %v\n%s", err, out)
+	}
+	out, _ = run(t, home, nil, "install", "claude", "--show")
+	if !strings.Contains(out, "method:  manual") {
+		t.Errorf("after unset-default, claude is not back to built-in:\n%s", out)
+	}
+}

@@ -60,6 +60,23 @@ built by CI but never published, so `update` never offers one.
 - `--show` prints the exact command that would run instead of running it.
   For `--curlscript` it also prints the official installer page URL, so the
   operator can verify the script hasn't changed before trusting it.
+- Add your own installers, or change a tool's default, without a jat release.
+  They live in `~/.jat/config.json` and sit between the built-in default and
+  `--<method>`:
+
+  ```sh
+  jat install add-installer claude-native --method curlscript \
+      --command "curl -fsSL https://claude.ai/install.sh | bash" \
+      --docs https://code.claude.com/docs/en/overview
+  jat install set-default claude claude-native   # or a built-in method: set-default mise curlscript
+  jat install claude                             # runs the script above
+  jat install claude --manual                    # a one-off override still wins
+  jat install list-installers                    # what you have configured
+  jat install unset-default claude               # back to jat's default
+  jat install remove-installer claude-native
+  ```
+
+  `set-default` also works for a tool jat doesn't know yet, which adds it.
 - `tools.md` / `sort.html` in this repo are the seed data for the
   tool → default-method mapping.
 
