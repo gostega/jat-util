@@ -5,6 +5,25 @@ trailers (`Changelog:`, `Release-Note:`, `Upgrade:`); `make changelog` prints
 the unreleased block. Every entry ends with an `Upgrade:` line, even when it
 is "nothing to do".
 
+## v0.5.0 — 2026-10-21
+
+### Added
+
+- Your own installers and per-tool defaults for `jat install`, kept in
+  `~/.jat/config.json` and sitting between jat's built-in default and a
+  one-off `--<method>`: `jat install add-installer`, `set-default`,
+  `unset-default`, `remove-installer` and `list-installers`. A default can
+  also add a tool jat doesn't know yet. `--show` says when the command
+  comes from your config, and `jat list` marks those tools.
+
+### Changed
+
+- The release workflow runs only when a `v*` tag is pushed, so a release
+  shows a single run; vet and test on pull requests moved to a separate
+  `ci` workflow, and pushes to `main` no longer run CI.
+
+Upgrade: nothing to do
+
 ## v0.4.0 — 2026-09-25
 
 ### Added
