@@ -34,6 +34,10 @@ type Config struct {
 	Vault *VaultRef `json:"vault,omitempty"`
 	// Preview holds the picker's preview-pane preferences.
 	Preview PreviewPrefs `json:"preview,omitempty"`
+	// Installers and Defaults are the user's layer over the built-in tool
+	// table: see installers.go.
+	Installers map[string]Installer `json:"installers,omitempty"`
+	Defaults   map[string]string    `json:"defaults,omitempty"`
 }
 
 type PreviewPrefs struct {
@@ -86,6 +90,10 @@ func usage() {
                                      save the OS profile and this machine's name
   jat install <tool> [--<method>] [--show]
   jat install --self [--yes]         put this binary on your PATH (a fresh download installs itself)
+  jat install add-installer <name> --method <method> --command "<cmd>" [--docs <url>] [--force]
+  jat install set-default <tool> <installer|method>
+  jat install unset-default <tool>  |  remove-installer <name>  |  list-installers
+                                     your own installers and per-tool defaults (~/.jat/config.json)
   jat list                           known tools and their default method
   jat migrate send [--transport file|vault] [--out <file>] [--all] [--include-secrets] [--show]
                                      pick config and bundle it for another machine
@@ -138,6 +146,9 @@ func cmdInit(args []string) error {
 }
 
 func cmdInstall(args []string) error {
+	if handled, err := cmdInstallConfig(args); handled {
+		return err
+	}
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	show := fs.Bool("show", false, "print the command that would run, and where to verify it")
 	self := fs.Bool("self", false, "install this binary onto your PATH (same as: jat install jat)")
@@ -155,13 +166,13 @@ func cmdInstall(args []string) error {
 		return errors.New("usage: jat install <tool> [--<method>] [--show]  |  jat install --self")
 	}
 	name := fs.Arg(0)
-	tool, ok := tools[name]
-	if !ok {
-		return fmt.Errorf("unknown tool %q (try: jat list)", name)
-	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
+	}
+	tool, ok := effectiveTools(cfg)[name]
+	if !ok {
+		return fmt.Errorf("unknown tool %q (try: jat list, or jat install add-installer)", name)
 	}
 	method, cmd, err := resolve(tool, cfg.Profile, override)
 	if err != nil {
@@ -170,6 +181,9 @@ func cmdInstall(args []string) error {
 
 	if *show {
 		fmt.Printf("tool:    %s\nprofile: %s\nmethod:  %s\n", name, cfg.Profile, method)
+		if tool.Installer != "" && method == tool.Prefer {
+			fmt.Printf("from:    your installer %q (%s)\n", tool.Installer, configPath())
+		}
 		if cmd == "" {
 			fmt.Println("command: (not automatable)")
 		} else {
@@ -204,11 +218,15 @@ func cmdList(args []string) error {
 	if err != nil {
 		return err
 	}
-	for _, name := range slices.Sorted(maps(tools)) {
-		method, _, err := resolve(tools[name], cfg.Profile, "")
+	all := effectiveTools(cfg)
+	for _, name := range slices.Sorted(maps(all)) {
+		method, _, err := resolve(all[name], cfg.Profile, "")
 		if err != nil {
 			fmt.Printf("%-20s %s\n", name, "—")
 			continue
+		}
+		if all[name].Installer != "" {
+			method += " (" + all[name].Installer + ")"
 		}
 		fmt.Printf("%-20s %s\n", name, method)
 	}
@@ -216,7 +234,8 @@ func cmdList(args []string) error {
 }
 
 // resolve picks the install method for a tool: an explicit override if given,
-// otherwise the first method in the profile's preference order that the tool has.
+// then the user's preferred method, otherwise the first method in the
+// profile's preference order that the tool has.
 func resolve(t Tool, profile, override string) (method, cmd string, err error) {
 	if override != "" {
 		cmd, ok := t.Methods[override]
@@ -224,6 +243,9 @@ func resolve(t Tool, profile, override string) (method, cmd string, err error) {
 			return "", "", fmt.Errorf("no %s install method (has: %s)", override, strings.Join(slices.Sorted(maps(t.Methods)), ", "))
 		}
 		return override, cmd, nil
+	}
+	if cmd, ok := t.Methods[t.Prefer]; ok && t.Prefer != "" {
+		return t.Prefer, cmd, nil
 	}
 	order, ok := profileOrder[profile]
 	if !ok {
