@@ -51,6 +51,12 @@ var tools = map[string]Tool{
 		Methods: map[string]string{"manual": ""},
 		Docs:    "https://www.docker.com/products/docker-desktop/",
 	},
+	"orbstack": {
+		Group:   "Apps",
+		App:     "OrbStack",
+		Methods: map[string]string{"cask": "brew install --cask orbstack", "manual": ""},
+		Docs:    "https://orbstack.dev/download",
+	},
 	"1password": {
 		Group:   "Apps",
 		App:     "1Password",
