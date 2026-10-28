@@ -13,7 +13,8 @@ functions are added as subcommands; migration is one of them, not the point of
 the tool. See `README.md` for the user view.
 
 Subcommands live in `main.go`: `init`, `install`, `list`, `migrate` (`send`,
-`receive`, `inspect`, `cleanup`), `vault`, `update`, `release`, `version`.
+`receive`, `inspect`, `cleanup`), `vault`, `mac` (`dock-clean`), `update`,
+`release`, `version`.
 
 ## Layout
 
@@ -44,6 +45,7 @@ stand-in `op` in `test/testdata/`).
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate, with its preview pane |
 | `highlight.go` | small per-format tokenizers for syntax colour in the pane; no library by design |
 | `preview.go` | what the pane shows: diffs, file heads, trees — and never a Secret item's contents |
+| `mac.go` | `jat mac`: macOS housekeeping (`dock-clean`), its commands through swappable `macExec` |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish the repo it runs in (from the remote URL, or `--repo`), from a clean, in-sync HEAD; version from its tags checked against its latest GitHub release |
 

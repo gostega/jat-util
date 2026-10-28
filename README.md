@@ -4,7 +4,8 @@ managing configs, moving between machines, and whatever other housekeeping
 jobs turn out to be worth a subcommand. Migration is one function among many.
 
 Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
-`inspect`, `cleanup`), `vault`, `update`, `release`, `version`.
+`inspect`, `cleanup`), `vault`, `mac` (`dock-clean`), `update`, `release`,
+`version`.
 
 ## INSTALL
 
@@ -70,6 +71,18 @@ jat install --all --dry-run  # the plan, in dependency order, running nothing (-
   at the end of the run instead of being executed.
 - Installs run parents first, stream each command's output, carry on past a
   failure, and skip anything that needed the failed tool.
+
+## MAC
+
+```sh
+jat mac dock-clean --show              # what would go, what stays, the exact commands
+jat mac dock-clean                     # take Apple's bundled apps out of the Dock
+```
+
+`dock-clean` removes only apps that ship with macOS (those under
+`/System/Applications`, plus Safari); anything you pinned yourself stays. The
+Dock is backed up to `~/.jat/mac/dock-<timestamp>.plist` first, and the undo
+command is printed at the end.
 
 ## ABOUT
 

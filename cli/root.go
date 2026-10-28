@@ -66,6 +66,8 @@ func Main() {
 		err = cmdMigrate(os.Args[2:])
 	case "vault":
 		err = cmdVault(os.Args[2:])
+	case "mac":
+		err = cmdMac(os.Args[2:])
 	case "update":
 		err = cmdUpdate(os.Args[2:])
 	case "release":
@@ -108,7 +110,8 @@ func usage() {
                                      tidy up backups here and migrations in the vault
   jat vault [set [--manager 1password|bitwarden] [<name or id>]]
                                      the private password-manager vault jat may use
-  jat update [--check]               replace this binary with the latest release
+  jat mac dock-clean [--show]        take Apple's bundled apps out of the Dock, keep the rest
+  jat update [--check]             replace this binary with the latest release
   jat release [patch|minor|major]    tag and push a new release
   jat version
 
