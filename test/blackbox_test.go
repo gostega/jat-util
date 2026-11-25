@@ -300,6 +300,11 @@ func TestUserInstallerBecomesTheDefault(t *testing.T) {
 	if err != nil || !strings.Contains(out, "method:  curlscript") || !strings.Contains(out, "command: "+script) {
 		t.Fatalf("install claude --show: %v\n%s", err, out)
 	}
+	// The plan behind --all and the menu reads the same table.
+	out, err = run(t, home, []string{"PATH=/usr/bin:/bin"}, "install", "--all", "--dry-run")
+	if err != nil || !strings.Contains(out, "claude         curlscript "+script) {
+		t.Errorf("install --all --dry-run ignores the user's default for claude: %v\n%s", err, out)
+	}
 	out, err = run(t, home, nil, "install", "claude", "--manual", "--show")
 	if err != nil || !strings.Contains(out, "method:  manual") {
 		t.Fatalf("install claude --manual --show: %v\n%s", err, out)
@@ -319,5 +324,29 @@ func TestUserInstallerBecomesTheDefault(t *testing.T) {
 	out, _ = run(t, home, nil, "install", "claude", "--show")
 	if !strings.Contains(out, "method:  manual") {
 		t.Errorf("after unset-default, claude is not back to built-in:\n%s", out)
+	}
+}
+
+func TestInstallAllDryRunIsAPlanOnly(t *testing.T) {
+	home := t.TempDir()
+	writeFiles(t, home, map[string]string{".jat/config.json": `{"profile":"macos","host":"test-mac"}`})
+	for _, flag := range []string{"--dry-run", "--preview", "--show"} {
+		out, err := run(t, home, []string{"PATH=/usr/bin:/bin"}, "install", "--all", flag)
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", flag, err, out)
+		}
+		for _, want := range []string{"in dependency order", "→   homebrew", "→   mise", "·   docker"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s plan missing %q:\n%s", flag, want, out)
+			}
+		}
+		if strings.Index(out, "homebrew") > strings.Index(out, "ghostty") {
+			t.Errorf("%s: homebrew should come before the casks that need it", flag)
+		}
+	}
+	// Without a terminal and without --all, bare install explains itself.
+	out, err := run(t, home, nil, "install")
+	if err == nil || !strings.Contains(out, "--all") {
+		t.Errorf("bare install without a terminal: %v\n%s", err, out)
 	}
 }

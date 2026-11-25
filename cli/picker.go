@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +30,18 @@ type PickRow struct {
 	// means the row has nothing to preview.
 	ShortNote string
 	Preview   func() Preview
+
+	// Group puts the row under a tab; rows with no Group and no tabs behave
+	// as before. Tree is a prefix drawn dim before the label ("├─ "), so a
+	// dependency tree reads as one. Needs are rows that must be selected
+	// with this one; ticking it ticks them (shown as auto), unticking it
+	// unticks any that nothing else selected still needs. Dim marks a row
+	// that is present already: greyed, unticked by default, and left out
+	// of select-all and invert, though still tickable on purpose.
+	Group string
+	Tree  string
+	Needs []string
+	Dim   bool
 }
 
 // The pane needs room for a diff. Below paneMinWidth the preview takes the
@@ -56,6 +69,17 @@ func listColsFor(width int) int {
 // a pipe whenever jat's output is being captured — and then strips every colour
 // below, even though the picker itself draws to a real terminal on stderr.
 var pickStyle = lipgloss.NewRenderer(os.Stderr)
+
+func init() {
+	// Answer the light-or-dark question up front, without asking the
+	// terminal. lipgloss otherwise writes an OSC 11 query and reads the reply
+	// from the tty the first time an AdaptiveColor or a fresh style is
+	// rendered — and inside a running Bubble Tea program that read blocks
+	// forever, because the program owns stdin (found 2026-09-29: the install
+	// menu froze on the first auto-ticked row). jat's palette is designed
+	// for a dark terminal; a light one still gets readable ANSI colours.
+	pickStyle.SetHasDarkBackground(true)
+}
 
 var (
 	pickTitle = pickStyle.NewStyle().Bold(true)
@@ -162,6 +186,11 @@ type pickModel struct {
 	paneOpen   bool
 	paneScroll int
 	previews   map[string]Preview // built once per row, on first open
+
+	tabs []string // "All" first, then each Group in first-seen order; empty when rows have no groups
+	tab  int
+	auto map[string]bool // selected because something that needs them was
+	byID map[string]PickRow
 }
 
 func newPickModel(title, subtitle string, rows []PickRow, single bool) *pickModel {
@@ -172,25 +201,94 @@ func newPickModel(title, subtitle string, rows []PickRow, single bool) *pickMode
 		single:   single,
 		selected: map[string]bool{},
 		previews: map[string]Preview{},
+		auto:     map[string]bool{},
+		byID:     map[string]PickRow{},
 	}
 	for _, r := range rows {
+		m.byID[r.ID] = r
 		if r.Selected {
 			m.selected[r.ID] = true
 		}
+		if r.Group != "" && !slices.Contains(m.tabs, r.Group) {
+			m.tabs = append(m.tabs, r.Group)
+		}
+	}
+	if len(m.tabs) > 0 {
+		// Known groups in their declared order, anything else after.
+		slices.SortStableFunc(m.tabs, func(a, b string) int {
+			ia, ib := slices.Index(toolGroups, a), slices.Index(toolGroups, b)
+			if ia < 0 {
+				ia = len(toolGroups)
+			}
+			if ib < 0 {
+				ib = len(toolGroups)
+			}
+			return ia - ib
+		})
+		m.tabs = append([]string{"All"}, m.tabs...)
 	}
 	m.recompute()
 	return m
 }
 
+// inTab says whether a row belongs on the current tab: everything on All,
+// otherwise the tab's own rows plus any row a shown row hangs off, so the
+// tree keeps its parents for context.
+func (m *pickModel) inTab(r PickRow) bool {
+	if len(m.tabs) == 0 || m.tab == 0 || r.Group == m.tabs[m.tab] {
+		return true
+	}
+	for _, o := range m.rows {
+		if o.Group == m.tabs[m.tab] && m.needsTransitively(o.ID, r.ID) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *pickModel) needsTransitively(from, target string) bool {
+	seen := map[string]bool{}
+	var walk func(id string) bool
+	walk = func(id string) bool {
+		for _, n := range m.byID[id].Needs {
+			if n == target || (!seen[n] && func() bool { seen[n] = true; return walk(n) }()) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(from)
+}
+
 func (m *pickModel) recompute() {
 	m.visible = m.visible[:0]
 	f := strings.ToLower(m.filter)
+	matched := map[string]bool{}
 	for _, r := range m.rows {
+		if !m.inTab(r) {
+			continue
+		}
 		if f != "" && !strings.Contains(strings.ToLower(r.Label+" "+r.Note), f) {
 			continue
 		}
-		m.visible = append(m.visible, r)
+		matched[r.ID] = true
 	}
+	// A filtered tree keeps each match's ancestors, so a leaf never floats.
+	if f != "" {
+		for id := range matched {
+			for _, r := range m.rows {
+				if m.needsTransitively(id, r.ID) && m.inTab(r) {
+					matched[r.ID] = true
+				}
+			}
+		}
+	}
+	for _, r := range m.rows {
+		if matched[r.ID] {
+			m.visible = append(m.visible, r)
+		}
+	}
+	redrawTree(m.visible)
 	if m.cursor >= len(m.visible) {
 		m.cursor = max(0, len(m.visible)-1)
 	}
@@ -199,6 +297,8 @@ func (m *pickModel) recompute() {
 func (m *pickModel) toggle(id string) {
 	if m.selected[id] {
 		delete(m.selected, id)
+		delete(m.auto, id)
+		m.dropUnneeded()
 		return
 	}
 	if m.single {
@@ -207,6 +307,43 @@ func (m *pickModel) toggle(id string) {
 		m.selected = map[string]bool{}
 	}
 	m.selected[id] = true
+	delete(m.auto, id)
+	m.selectNeeds(id)
+}
+
+// selectNeeds ticks what id needs, transitively, skipping rows already
+// present (Dim) — there is nothing to install for those.
+func (m *pickModel) selectNeeds(id string) {
+	for _, n := range m.byID[id].Needs {
+		r, ok := m.byID[n]
+		if !ok || r.Dim || m.selected[n] {
+			continue
+		}
+		m.selected[n] = true
+		m.auto[n] = true
+		m.selectNeeds(n)
+	}
+}
+
+// dropUnneeded unticks auto-selected rows that no selected row still needs.
+func (m *pickModel) dropUnneeded() {
+	for changed := true; changed; {
+		changed = false
+		for id := range m.auto {
+			needed := false
+			for sel := range m.selected {
+				if sel != id && m.needsTransitively(sel, id) {
+					needed = true
+					break
+				}
+			}
+			if !needed {
+				delete(m.selected, id)
+				delete(m.auto, id)
+				changed = true
+			}
+		}
+	}
 }
 
 func (m *pickModel) Init() tea.Cmd { return nil }
@@ -281,17 +418,53 @@ func (m *pickModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.toggle(m.visible[m.cursor].ID)
 			}
 		// Letters all go to the filter, so select-all/none need modifiers.
+		// Both, and invert, leave Dim (already-installed) rows alone.
 		case "ctrl+a":
 			if !m.single {
 				for _, r := range m.visible {
-					m.selected[r.ID] = true
+					if !r.Dim {
+						m.selected[r.ID] = true
+						delete(m.auto, r.ID)
+						m.selectNeeds(r.ID)
+					}
 				}
 			}
 		case "ctrl+n":
 			if !m.single {
 				for _, r := range m.visible {
 					delete(m.selected, r.ID)
+					delete(m.auto, r.ID)
 				}
+				m.dropUnneeded()
+			}
+		// ctrl+t, not ctrl+i: ctrl+i is the tab byte in every terminal.
+		case "ctrl+t":
+			if !m.single {
+				for _, r := range m.visible {
+					if r.Dim {
+						continue
+					}
+					if m.selected[r.ID] && !m.auto[r.ID] {
+						delete(m.selected, r.ID)
+					} else {
+						m.selected[r.ID] = true
+						delete(m.auto, r.ID)
+					}
+				}
+				m.dropUnneeded()
+				for id := range m.selected {
+					m.selectNeeds(id)
+				}
+			}
+		case "tab", "shift+tab":
+			if len(m.tabs) > 1 {
+				step := 1
+				if msg.String() == "shift+tab" {
+					step = len(m.tabs) - 1
+				}
+				m.tab = (m.tab + step) % len(m.tabs)
+				m.cursor, m.paneScroll = 0, 0
+				m.recompute()
 			}
 		case "enter":
 			// In single mode the cursor IS the choice, so enter takes the row
@@ -383,6 +556,9 @@ func (m *pickModel) listRows() int {
 	if m.subtitle != "" {
 		chrome++
 	}
+	if len(m.tabs) > 1 {
+		chrome += 2
+	}
 	if m.filter != "" {
 		chrome += 2
 	}
@@ -405,6 +581,10 @@ func (m *pickModel) View() string {
 		b.WriteString("\n  " + pickDim.Render(fmt.Sprintf("%d of %d selected", len(m.selected), len(m.rows))) + "\n\n")
 	}
 
+	if len(m.tabs) > 1 {
+		b.WriteString(m.tabBar() + "\n")
+		b.WriteString(pickDim.Render("  "+strings.Repeat("─", max(0, min(m.width, 120)-4))) + "\n")
+	}
 	if m.filter != "" {
 		b.WriteString(fmt.Sprintf("  filter: %s\n\n", m.filter))
 	}
@@ -432,7 +612,7 @@ func (m *pickModel) View() string {
 	}
 	width := 0
 	for _, r := range m.visible {
-		width = max(width, len(r.Label))
+		width = max(width, len([]rune(r.Tree))+len(r.Label))
 	}
 	for i := start; i < end; i++ {
 		list = append(list, m.renderRow(m.visible[i], i == m.cursor, width, listCols))
@@ -462,20 +642,99 @@ func (m *pickModel) View() string {
 
 	// Two lines rather than one: the full set runs past 80 columns and wraps
 	// into a ragged second line on a standard terminal.
+	line1 := "  type to filter · ↑/↓ move"
+	if len(m.tabs) > 1 {
+		line1 += " · tab/shift+tab group"
+	}
 	switch {
 	case m.paneOpen:
-		b.WriteString("\n" + pickDim.Render("  type to filter · ↑/↓ move · ← close preview · shift+↑/↓ or pgup/pgdn scroll preview") + "\n")
+		line1 += " · ← close preview · shift+↑/↓ or pgup/pgdn scroll preview"
 	case m.hasPreviews():
-		b.WriteString("\n" + pickDim.Render("  type to filter · ↑/↓ move · → preview") + "\n")
-	default:
-		b.WriteString("\n" + pickDim.Render("  type to filter · ↑/↓ move") + "\n")
+		line1 += " · → preview"
 	}
+	b.WriteString("\n" + pickDim.Render(line1) + "\n")
 	if m.single {
 		b.WriteString(pickDim.Render("  enter choose · esc/ctrl+c cancel") + "\n")
 	} else {
-		b.WriteString(pickDim.Render("  space toggle · ctrl+a all · ctrl+n none · enter confirm · esc/ctrl+c cancel") + "\n")
+		b.WriteString(pickDim.Render("  space toggle · ctrl+a all · ctrl+n none · ctrl+t invert · enter confirm · esc/ctrl+c cancel") + "\n")
 	}
 	return b.String()
+}
+
+// redrawTree recomputes the ├─/└─/│ prefixes for the rows actually shown,
+// so a pruned or filtered tree still closes its branches properly. Depth is
+// read from the prefix each row arrived with (three columns per level).
+func redrawTree(rows []PickRow) {
+	depth := func(r PickRow) int { return len([]rune(r.Tree)) / 3 }
+	for i := range rows {
+		d := depth(rows[i])
+		if d == 0 {
+			rows[i].Tree = ""
+			continue
+		}
+		// Is there a later row at the same depth before we climb above it?
+		last := true
+		for j := i + 1; j < len(rows); j++ {
+			dj := depth(rows[j])
+			if dj < d {
+				break
+			}
+			if dj == d {
+				last = false
+				break
+			}
+		}
+		prefix := ""
+		for a := 1; a < d; a++ {
+			// Does the ancestor at depth a have a later sibling? Then a
+			// trunk line runs down past this row.
+			trunk := false
+			for j := i + 1; j < len(rows); j++ {
+				dj := depth(rows[j])
+				if dj < a {
+					break
+				}
+				if dj == a {
+					trunk = true
+					break
+				}
+			}
+			if trunk {
+				prefix += "│  "
+			} else {
+				prefix += "   "
+			}
+		}
+		if last {
+			prefix += "└─ "
+		} else {
+			prefix += "├─ "
+		}
+		rows[i].Tree = prefix
+	}
+}
+
+// tabBar draws the groups with their row counts; the current one is
+// bracketed and bright so it reads without colour too.
+func (m *pickModel) tabBar() string {
+	counts := map[string]int{}
+	for _, r := range m.rows {
+		counts[r.Group]++
+	}
+	var parts []string
+	for i, t := range m.tabs {
+		n := counts[t]
+		if i == 0 {
+			n = len(m.rows)
+		}
+		label := fmt.Sprintf("%s %d", t, n)
+		if i == m.tab {
+			parts = append(parts, pickTitle.Render("[ "+label+" ]"))
+		} else {
+			parts = append(parts, pickDim.Render(label))
+		}
+	}
+	return "  " + strings.Join(parts, "   ")
 }
 
 // renderRow draws one list line, cut to cols with an ellipsis. Padding
@@ -502,27 +761,47 @@ func (m *pickModel) renderRow(r PickRow, atCursor bool, labelWidth, cols int) st
 	if m.selected[r.ID] || (m.single && atCursor) {
 		style = pickOn
 	}
+	tree := pickDim.Render(r.Tree)
+	treeW := len([]rune(r.Tree))
 	note := r.Note
 	if m.paneOpen && r.ShortNote != "" && cols < paneFullNoteCols {
 		note = r.ShortNote
 	}
-	if note == "" {
-		return fmt.Sprintf("  %s%s%s", cursor, check, style.Render(truncate(r.Label, cols-4-checkW)))
+	if m.auto[r.ID] {
+		note = "← needed by a ticked row · " + note
 	}
 	noteStyle := pickDim
 	if r.NoteColor != "" {
-		noteStyle = pickStyle.NewStyle().Foreground(lipgloss.Color(r.NoteColor))
+		noteStyle = colourStyle(r.NoteColor)
 	}
-	label := fmt.Sprintf("%-*s", labelWidth, r.Label)
+	if m.auto[r.ID] {
+		noteStyle = colourStyle("11")
+	}
+	if note == "" {
+		return fmt.Sprintf("  %s%s%s%s", cursor, check, tree, style.Render(truncate(r.Label, cols-4-checkW-treeW)))
+	}
+	label := fmt.Sprintf("%-*s", max(0, labelWidth-treeW), r.Label)
 	if cols <= 0 { // no size message yet: show everything
-		return fmt.Sprintf("  %s%s%s  %s", cursor, check, style.Render(label), noteStyle.Render(note))
+		return fmt.Sprintf("  %s%s%s%s  %s", cursor, check, tree, style.Render(label), noteStyle.Render(note))
 	}
-	room := cols - 4 - checkW - len([]rune(label)) - 2
+	room := cols - 4 - checkW - treeW - len([]rune(label)) - 2
 	if room < 4 {
 		// Not enough left for a note worth reading: the label gets the row.
-		return fmt.Sprintf("  %s%s%s", cursor, check, style.Render(truncate(r.Label, cols-4-checkW)))
+		return fmt.Sprintf("  %s%s%s%s", cursor, check, tree, style.Render(truncate(r.Label, cols-4-checkW-treeW)))
 	}
-	return fmt.Sprintf("  %s%s%s  %s", cursor, check, style.Render(label), noteStyle.Render(truncate(note, room)))
+	return fmt.Sprintf("  %s%s%s%s  %s", cursor, check, tree, style.Render(label), noteStyle.Render(truncate(note, room)))
+}
+
+// colourStyle caches one style per colour so View never builds styles.
+var colourStyles = map[string]lipgloss.Style{}
+
+func colourStyle(c string) lipgloss.Style {
+	st, ok := colourStyles[c]
+	if !ok {
+		st = pickStyle.NewStyle().Foreground(lipgloss.Color(c))
+		colourStyles[c] = st
+	}
+	return st
 }
 
 // renderPane draws the preview for the cursor row, at most rows lines wide

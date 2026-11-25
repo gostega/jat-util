@@ -53,6 +53,9 @@ func effectiveTools(cfg Config) map[string]Tool {
 		} else {
 			t.Prefer = choice
 		}
+		if t.Group == "" {
+			t.Group = "Other" // a tool only the user knows still gets a menu tab
+		}
 		out[name] = t
 	}
 	return out
