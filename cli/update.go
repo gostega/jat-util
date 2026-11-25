@@ -10,7 +10,8 @@ import (
 	"strings"
 )
 
-// repo is where releases are published. Both update and release read it.
+// repo is where jat's own releases are published; update reads it. Release
+// works on whichever repo it is run in (releaseRepo).
 const repo = "gostega/jat-util"
 
 // assetName must match what the release workflow uploads.
@@ -23,7 +24,7 @@ func cmdUpdate(args []string) error {
 	check := fs.Bool("check", false, "report the latest version without installing it")
 	fs.Parse(args)
 
-	latest, err := latestReleaseTag()
+	latest, err := latestReleaseTag(repo)
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func downloadRelease(tag, dest string) error {
 
 // latestReleaseTag asks gh rather than reading git tags, so it reflects what
 // was actually published. Returns "" when the repo has no releases yet.
-func latestReleaseTag() (string, error) {
+func latestReleaseTag(repo string) (string, error) {
 	out, err := exec.Command("gh", "release", "view",
 		"--repo", repo, "--json", "tagName", "-q", ".tagName").CombinedOutput()
 	if err == nil {

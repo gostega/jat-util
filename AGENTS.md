@@ -44,7 +44,7 @@ stand-in `op` in `test/testdata/`).
 | `highlight.go` | small per-format tokenizers for syntax colour in the pane; no library by design |
 | `preview.go` | what the pane shows: diffs, file heads, trees — and never a Secret item's contents |
 | `update.go` | self-update from GitHub releases; asset naming |
-| `release.go` | `jat release`: tag and publish from a clean, in-sync HEAD |
+| `release.go` | `jat release`: tag and publish the repo it runs in (from the remote URL, or `--repo`), from a clean, in-sync HEAD; version from its tags checked against its latest GitHub release |
 
 `cli/*_test.go` are the unit tests; `TestEveryToolResolvesSomewhere` fails if
 a seeded tool cannot resolve on any profile, so dead table rows are caught.
