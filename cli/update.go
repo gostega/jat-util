@@ -11,7 +11,7 @@ import (
 )
 
 // repo is where jat's own releases are published; update reads it. Release
-// works on whichever repo it is run in (releaseRepo).
+// works on whichever repo it is run in (see cmdRelease).
 const repo = "gostega/jat-util"
 
 // assetName must match what the release workflow uploads.

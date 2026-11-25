@@ -34,10 +34,12 @@ func TestCurrentVersion(t *testing.T) {
 		fail                bool
 	}{
 		{"v0.5.0", "v0.5.0", "v0.5.0", false},
-		{"v0.1.0", "", "v0.1.0", false}, // tagged by hand, no release yet
-		{"", "", "", false},             // first release
-		{"v0.4.0", "v0.5.0", "", true},  // tags here are behind GitHub
-		{"", "v0.4.0", "", true},        // another repo's release, or no tags fetched
+		{"v0.1.0", "", "v0.1.0", false},       // tagged by hand, no release yet
+		{"", "", "", false},                   // first release
+		{"v0.5.0", "v0.4.0", "v0.5.0", false}, // tagged, release workflow skipped
+		{"v0.10.0", "v0.9.1", "v0.10.0", false},
+		{"v0.4.0", "v0.5.0", "", true}, // tags here are behind GitHub
+		{"", "v0.4.0", "", true},       // another repo's release, or no tags fetched
 	}
 	for _, c := range cases {
 		got, err := currentVersion(c.tag, c.released, "o/r")

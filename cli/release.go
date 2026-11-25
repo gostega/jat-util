@@ -174,21 +174,32 @@ func repoFromRemote(url string) (string, error) {
 
 // highestTag returns the highest vX.Y.Z tag, or "" when there is none.
 func highestTag(tags []string) string {
-	best, bestKey := "", [3]int{-1, -1, -1}
+	best, bestKey := "", ""
 	for _, t := range tags {
 		m := releaseTagRe.FindStringSubmatch(strings.TrimSpace(t))
 		if m == nil {
 			continue
 		}
-		var k [3]int
-		for i := range k {
-			k[i], _ = strconv.Atoi(m[i+1])
-		}
-		if k[0] > bestKey[0] || k[0] == bestKey[0] && (k[1] > bestKey[1] || k[1] == bestKey[1] && k[2] > bestKey[2]) {
+		if k := versionKey(m[0]); best == "" || k > bestKey {
 			best, bestKey = m[0], k
 		}
 	}
 	return best
+}
+
+// versionKey makes vX.Y.Z compare correctly as a string (v0.10.0 > v0.9.1).
+// Anything that is not semver keys as "".
+func versionKey(v string) string {
+	m := semverRe.FindStringSubmatch(v)
+	if m == nil {
+		return ""
+	}
+	var k string
+	for _, n := range m[1:4] {
+		i, _ := strconv.Atoi(n)
+		k += fmt.Sprintf("%09d", i)
+	}
+	return k
 }
 
 // currentVersion settles the base version from the highest release tag and
@@ -196,7 +207,7 @@ func highestTag(tags []string) string {
 // have been made by hand, or its workflow skipped); a release the tags don't
 // reach means the tags here are stale or the two have drifted, so refuse.
 func currentVersion(tag, released, repo string) (string, error) {
-	if released != "" && released != tag {
+	if released != "" && (tag == "" || versionKey(released) > versionKey(tag)) {
 		return "", fmt.Errorf("the latest GitHub release of %s is %s but the highest version tag on HEAD is %q — fetch tags or check `gh release list --repo %s`", repo, released, tag, repo)
 	}
 	return tag, nil
