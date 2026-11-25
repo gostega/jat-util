@@ -18,11 +18,12 @@ func cmdRelease(args []string) error {
 	fs := flag.NewFlagSet("release", flag.ExitOnError)
 	remote := fs.String("remote", "origin", "git remote to push the tag to")
 	yes := fs.Bool("yes", false, "skip the confirmation prompt")
+	repoFlag := fs.String("repo", "", "GitHub owner/name (default: read from the remote's URL)")
 	fs.Parse(flagsFirst(fs, args))
 
 	bump := "patch"
 	if fs.NArg() > 1 {
-		return fmt.Errorf("usage: jat release [patch|minor|major] [--remote <name>] [--yes]")
+		return fmt.Errorf("usage: jat release [patch|minor|major] [--remote <name>] [--repo <owner/name>] [--yes]")
 	}
 	if fs.NArg() == 1 {
 		bump = fs.Arg(0)
@@ -48,7 +49,33 @@ func cmdRelease(args []string) error {
 		return err
 	}
 
-	current, err := latestReleaseTag()
+	// The repo being released is the one jat runs in, not jat's own: reading
+	// jat-util's releases here once proposed tagging another repo with jat's
+	// next version.
+	repo := *repoFlag
+	if repo == "" {
+		url, err := git("remote", "get-url", *remote)
+		if err != nil {
+			return err
+		}
+		if repo, err = repoFromRemote(url); err != nil {
+			return err
+		}
+	}
+	// The version comes from the repo's own tags, checked against GitHub's
+	// latest release; trusting either alone has picked the wrong one.
+	if _, err := git("fetch", "--quiet", "--tags", *remote); err != nil {
+		return err
+	}
+	tags, err := git("tag", "--list", "--merged", "HEAD")
+	if err != nil {
+		return err
+	}
+	released, err := latestReleaseTag(repo)
+	if err != nil {
+		return err
+	}
+	current, err := currentVersion(highestTag(strings.Split(tags, "\n")), released, repo)
 	if err != nil {
 		return err
 	}
@@ -131,6 +158,49 @@ func headMatchesRemote(remote, branch string) error {
 }
 
 var semverRe = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
+
+// releaseTagRe matches a promoted release tag; rc and other pre-release tags
+// never set the base version.
+var releaseTagRe = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)$`)
+
+// repoFromRemote turns a GitHub remote URL into owner/name.
+func repoFromRemote(url string) (string, error) {
+	m := regexp.MustCompile(`github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$`).FindStringSubmatch(strings.TrimSpace(url))
+	if m == nil {
+		return "", fmt.Errorf("remote %q is not a GitHub repo — pass --repo owner/name", url)
+	}
+	return m[1], nil
+}
+
+// highestTag returns the highest vX.Y.Z tag, or "" when there is none.
+func highestTag(tags []string) string {
+	best, bestKey := "", [3]int{-1, -1, -1}
+	for _, t := range tags {
+		m := releaseTagRe.FindStringSubmatch(strings.TrimSpace(t))
+		if m == nil {
+			continue
+		}
+		var k [3]int
+		for i := range k {
+			k[i], _ = strconv.Atoi(m[i+1])
+		}
+		if k[0] > bestKey[0] || k[0] == bestKey[0] && (k[1] > bestKey[1] || k[1] == bestKey[1] && k[2] > bestKey[2]) {
+			best, bestKey = m[0], k
+		}
+	}
+	return best
+}
+
+// currentVersion settles the base version from the highest release tag and
+// GitHub's latest release. A tag with no release is fine (the release may
+// have been made by hand, or its workflow skipped); a release the tags don't
+// reach means the tags here are stale or the two have drifted, so refuse.
+func currentVersion(tag, released, repo string) (string, error) {
+	if released != "" && released != tag {
+		return "", fmt.Errorf("the latest GitHub release of %s is %s but the highest version tag on HEAD is %q — fetch tags or check `gh release list --repo %s`", repo, released, tag, repo)
+	}
+	return tag, nil
+}
 
 func bumpVersion(current, bump string) (string, error) {
 	m := semverRe.FindStringSubmatch(current)
