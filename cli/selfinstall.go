@@ -46,8 +46,11 @@ func writable(dir string) bool {
 }
 
 // rcFile is where a PATH line goes for the shell the person is using.
-func rcFile(home string) string {
-	switch filepath.Base(os.Getenv("SHELL")) {
+func rcFile(home string) string { return rcFileFor(home, os.Getenv("SHELL")) }
+
+// rcFileFor is where a PATH line goes for a given shell (a name or a path).
+func rcFileFor(home, shell string) string {
+	switch filepath.Base(shell) {
 	case "zsh":
 		return filepath.Join(home, ".zshrc")
 	case "fish":

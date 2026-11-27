@@ -110,6 +110,11 @@ func setLoginShell(tbl map[string]Tool, tool string, show bool) error {
 		}
 		return err
 	}
+	// Carried even when nothing else needs doing, so re-running `jat shell`
+	// repairs a machine whose PATH line was left behind in the old shell.
+	if err := carryJatPath(p, show); err != nil {
+		return err
+	}
 	if cur, err := currentLoginShell(); err == nil && cur == p {
 		fmt.Printf("login shell is already %s\n", p)
 		return nil
@@ -143,4 +148,46 @@ func shellLine(c []string) string {
 		out[i] = a
 	}
 	return strings.Join(out, " ")
+}
+
+// jatDir is the directory this jat binary runs from; a variable for tests.
+var jatDir = func() string {
+	self, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if self, err = filepath.EvalSymlinks(self); err != nil {
+		return ""
+	}
+	return filepath.Dir(self)
+}
+
+// carryJatPath gives the new shell the PATH line jat's self-install gave the
+// old one. Self-install writes it only to the startup file of the shell in use
+// at the time (~/.zshrc on a stock Mac), so without this, switching shells
+// with jat makes jat — and anything else in ~/.local/bin — vanish. Only a
+// directory under $HOME needs it; system directories are on every PATH.
+func carryJatPath(shell string, show bool) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := jatDir()
+	if dir == "" || !strings.HasPrefix(dir, home+string(filepath.Separator)) {
+		return nil
+	}
+	rc := rcFileFor(home, shell)
+	line := pathLine(dir, rc)
+	if b, err := os.ReadFile(rc); err == nil && strings.Contains(string(b), line) {
+		return nil
+	}
+	if show {
+		fmt.Printf("  would add to %s: %s\n", rc, line)
+		return nil
+	}
+	if err := appendLine(rc, line); err != nil {
+		return err
+	}
+	fmt.Printf("  added jat's PATH line to %s, so %s finds jat too\n", rc, filepath.Base(shell))
+	return nil
 }

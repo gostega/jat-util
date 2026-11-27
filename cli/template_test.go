@@ -193,8 +193,11 @@ func TestBuiltinTemplatesLoad(t *testing.T) {
 }
 
 func TestLoginShellCommands(t *testing.T) {
-	prevQ, prevR, prevE, prevL, prevC := shellQuery, shellRun, etcShells, lookPath, runCheck
-	t.Cleanup(func() { shellQuery, shellRun, etcShells, lookPath, runCheck = prevQ, prevR, prevE, prevL, prevC })
+	prevQ, prevR, prevE, prevL, prevC, prevD := shellQuery, shellRun, etcShells, lookPath, runCheck, jatDir
+	t.Cleanup(func() {
+		shellQuery, shellRun, etcShells, lookPath, runCheck, jatDir = prevQ, prevR, prevE, prevL, prevC, prevD
+	})
+	jatDir = func() string { return "/usr/bin" } // never touch the real ~/.bashrc
 	lookPath = func(b string) (string, error) { return "/opt/homebrew/bin/" + b, nil }
 	runCheck = func([]string) bool { return true }
 	shellQuery = func(name string, args ...string) ([]byte, error) {
@@ -271,5 +274,51 @@ func TestTemplateFollowsSymlinks(t *testing.T) {
 	os.Remove(real)
 	if _, err := loadTemplate("linked", home, "macos", tools); err == nil {
 		t.Error("a dangling symlink must be an error")
+	}
+}
+
+// Switching shell carries jat's own PATH line along; doing it twice adds it
+// once; a jat in a system directory needs nothing.
+func TestLoginShellCarriesJatPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	prevQ, prevR, prevE, prevL, prevC, prevD := shellQuery, shellRun, etcShells, lookPath, runCheck, jatDir
+	t.Cleanup(func() {
+		shellQuery, shellRun, etcShells, lookPath, runCheck, jatDir = prevQ, prevR, prevE, prevL, prevC, prevD
+	})
+	lookPath = func(b string) (string, error) { return "/opt/homebrew/bin/" + b, nil }
+	runCheck = func([]string) bool { return true }
+	shellQuery = func(name string, _ ...string) ([]byte, error) {
+		if name == "getent" {
+			return []byte("u:x:1:1::/h:/opt/homebrew/bin/bash\n"), nil
+		}
+		return []byte("UserShell: /opt/homebrew/bin/bash\n"), nil
+	}
+	shellRun = func(string, ...string) error { return nil }
+	etcShells = filepath.Join(t.TempDir(), "shells")
+	jatDir = func() string { return filepath.Join(home, ".local", "bin") }
+
+	rc := filepath.Join(home, ".bashrc")
+	if err := setLoginShell(tools, "bash", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(rc); err == nil {
+		t.Fatal("--show wrote .bashrc")
+	}
+	for range 2 {
+		if err := setLoginShell(tools, "bash", false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, _ := os.ReadFile(rc)
+	if n := strings.Count(string(b), `export PATH="$HOME/.local/bin:$PATH"`); n != 1 {
+		t.Errorf("want the PATH line once in .bashrc, got %d:\n%s", n, b)
+	}
+
+	os.Remove(rc)
+	jatDir = func() string { return "/usr/local/bin" }
+	setLoginShell(tools, "bash", false)
+	if _, err := os.Stat(rc); err == nil {
+		t.Error("a jat in /usr/local/bin needs no PATH line")
 	}
 }
