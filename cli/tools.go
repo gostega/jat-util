@@ -57,6 +57,12 @@ var tools = map[string]Tool{
 		Methods: map[string]string{"cask": "brew install --cask orbstack", "manual": ""},
 		Docs:    "https://orbstack.dev/download",
 	},
+	"protonvpn": {
+		Group:   "Apps",
+		App:     "ProtonVPN",
+		Methods: map[string]string{"cask": "brew install --cask protonvpn", "manual": ""},
+		Docs:    "https://protonvpn.com/download-macos",
+	},
 	"1password": {
 		Group:   "Apps",
 		App:     "1Password",
