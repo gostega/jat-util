@@ -5,22 +5,62 @@ trailers (`Changelog:`, `Release-Note:`, `Upgrade:`); `make changelog` prints
 the unreleased block. Every entry ends with an `Upgrade:` line, even when it
 is "nothing to do".
 
-## v0.5.0 — 2026-10-21
+## v0.5.0 — 2026-11-27
 
 ### Added
 
+- **Templates** — apply a known setup without another machine to copy from.
+  `jat init --template <name>` (or pick one at `init`'s prompt, which
+  defaults to none) and `jat migrate receive --template <name|dir>` go
+  through the same picker, diffs, `--show` and backups as a bundle, with
+  installs, login shell and macOS defaults shown as done / to do beside the
+  files. Two are built in — `ohmybash` (bash 5, oh-my-bash, bash as login
+  shell) and `iterm2-natural-text` (⌘←/→ to line start/end and friends,
+  skipped when iTerm2 isn't installed) — and `jat template list` shows them
+  with yours from `~/.jat/templates`. `jat migrate send --to-template <name>`
+  saves this machine's config as one. Templates support `extends`,
+  `profiles` and per-item `when` conditions, may symlink to the real files,
+  and never carry secrets.
+- `examples/templates/mac-dev`: a template to copy and edit, combining both
+  built-ins with installs, `dock-clean` and a Ghostty-only key map.
+- `jat shell <tool>`: make an installed shell the login shell (`/etc/shells`,
+  then `chsh`). It refuses a shell jat doesn't count as installed, so never
+  macOS's bash 3.2, and carries jat's PATH line to the new shell.
+- `jat mac dock-clean` removes every Apple-bundled app from the Dock (even
+  ones you pinned) and keeps the rest; `--show` previews, and the old Dock is
+  backed up to `~/.jat/mac`. `jat mac default` is `defaults write` with a dry
+  run that skips values already set.
+- `jat install bash` installs a current bash, and counts the stock macOS
+  bash 3.2 as not installed.
+- New installs: `bitwarden`, `discord`, `iterm2`, `orbstack`, `protonvpn`
+  (Homebrew casks on macOS).
+- `jat install` with no tool opens a menu grouped by category, drawn as a
+  dependency tree with installed tools marked; `jat install --all
+  [--dry-run]` installs or plans everything not yet present.
 - Your own installers and per-tool defaults for `jat install`, kept in
   `~/.jat/config.json` and sitting between jat's built-in default and a
   one-off `--<method>`: `jat install add-installer`, `set-default`,
   `unset-default`, `remove-installer` and `list-installers`. A default can
   also add a tool jat doesn't know yet. `--show` says when the command
   comes from your config, and `jat list` marks those tools.
+- An `iterm2` config item for `jat migrate`: iTerm2's dynamic profiles.
 
 ### Changed
 
+- The oh-my-bash install runs `--unattended`, so its installer no longer
+  takes over the terminal.
 - The release workflow runs only when a `v*` tag is pushed, so a release
   shows a single run; vet and test on pull requests moved to a separate
   `ci` workflow, and pushes to `main` no longer run CI.
+
+### Fixed
+
+- `jat install` no longer offers oh-my-bash on a machine that already has it.
+- `jat install jat` recognises an existing install reached through a
+  symlinked directory (macOS's `/var`) instead of re-installing.
+- `jat release` releases the repo it runs in (from the remote URL, or
+  `--repo`), taking the version from that repo's tags instead of jat-util's
+  releases.
 
 Upgrade: nothing to do
 
