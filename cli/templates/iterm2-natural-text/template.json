@@ -1,0 +1,11 @@
+{
+  "description": "iTerm2 keys that edit text like a Mac app: ⌘←/→ line start/end, ⌥←/→ by word, ⌘⌫ delete line",
+  "profiles": ["macos"],
+  "when": {"iterm2": {"app": "iTerm"}},
+  "actions": [
+    {"do": "mac-default", "domain": "com.googlecode.iterm2", "key": "Default Bookmark Guid", "type": "string",
+     "value": "7369CF0B-DF1E-4820-86C1-AD0061D18C38",
+     "note": "makes the profile the default for new windows; quit and reopen iTerm2 if it is running",
+     "when": {"app": "iTerm"}}
+  ]
+}

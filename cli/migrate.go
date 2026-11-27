@@ -83,8 +83,19 @@ func migrateSend(args []string) error {
 	withSecrets := fs.Bool("include-secrets", false, "offer keys, tokens and credentials as well")
 	all := fs.Bool("all", false, "skip the picker and send everything available")
 	show := fs.Bool("show", false, "list what would be bundled without writing anything")
+	toTemplate := fs.String("to-template", "", "write the chosen items into a template (a name under ~/.jat/templates, or a directory) instead of a bundle")
 	fs.Parse(flagsFirst(fs, args))
 	var err error
+
+	if *toTemplate != "" {
+		if *transport != "" || *out != "" {
+			return fmt.Errorf("--to-template writes a template, not a bundle — drop --transport and --out")
+		}
+		if *withSecrets {
+			return fmt.Errorf("templates never carry secrets — drop --include-secrets")
+		}
+		*transport = "file" // skips the transport question; nothing travels
+	}
 
 	// No --transport: ask, unless there is nothing to ask on.
 	if *transport == "" {
@@ -172,6 +183,9 @@ func migrateSend(args []string) error {
 
 	// Menus are over; from here on, output must outlive the alternate screen.
 	releasePickerScreen()
+	if *toTemplate != "" {
+		return writeToTemplate(*toTemplate, home, cfg, chosen, *show)
+	}
 	if *show {
 		fmt.Printf("would send from %s (host %s):\n", home, cfg.Host)
 		for _, name := range chosen {

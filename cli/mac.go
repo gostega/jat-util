@@ -19,13 +19,116 @@ import (
 
 func cmdMac(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: jat mac dock-clean [--show]")
+		return errors.New("usage: jat mac dock-clean [--show] | jat mac default <domain> <key> -string|-bool|-int <value> [--show]")
 	}
 	switch args[0] {
 	case "dock-clean":
 		return macDockClean(args[1:])
+	case "default":
+		return macDefault(args[1:])
 	}
-	return fmt.Errorf("unknown mac command %q (known: dock-clean)", args[0])
+	return fmt.Errorf("unknown mac command %q (known: dock-clean, default)", args[0])
+}
+
+// macDefault is `defaults write` with a dry run and a no-op when the value is
+// already set: jat mac default <domain> <key> -string|-bool|-int <value>.
+func macDefault(args []string) error {
+	fs := flag.NewFlagSet("mac default", flag.ExitOnError)
+	show := fs.Bool("show", false, "print the command, change nothing")
+	var rest []string
+	for _, a := range args { // -string/-bool/-int are positional, not flags
+		if a == "--show" || a == "-show" {
+			*show = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	fs.Parse(nil)
+	if len(rest) != 4 {
+		return errors.New("usage: jat mac default <domain> <key> -string|-bool|-int <value> [--show]")
+	}
+	return macDefaultWrite(rest[0], rest[1], strings.TrimPrefix(rest[2], "-"), rest[3], *show)
+}
+
+// defaultsTypeFlag maps a template's type to defaults' own flag.
+func defaultsTypeFlag(t string) (string, error) {
+	switch t {
+	case "", "string":
+		return "-string", nil
+	case "bool":
+		return "-bool", nil
+	case "int":
+		return "-int", nil
+	}
+	return "", fmt.Errorf("mac-default type %q (want string, bool or int)", t)
+}
+
+// macDefaultIs compares what `defaults read` prints. Booleans read back as
+// 1/0, so the wanted value is spelled the same way before comparing.
+func macDefaultIs(domain, key, typ, value string) (bool, error) {
+	if runtime.GOOS != "darwin" {
+		return false, errors.New("macOS only")
+	}
+	out, err := macExec("defaults", "read", domain, key)
+	if err != nil {
+		return false, nil // unset
+	}
+	got := strings.TrimSpace(string(out))
+	if typ == "bool" {
+		if v, ok := map[string]string{"true": "1", "yes": "1", "false": "0", "no": "0"}[strings.ToLower(value)]; ok {
+			value = v
+		}
+	}
+	return got == value, nil
+}
+
+func macDefaultWrite(domain, key, typ, value string, show bool) error {
+	if runtime.GOOS != "darwin" {
+		return errors.New("mac default only runs on macOS")
+	}
+	t, err := defaultsTypeFlag(typ)
+	if err != nil {
+		return err
+	}
+	if ok, _ := macDefaultIs(domain, key, typ, value); ok {
+		fmt.Printf("  %s %s is already %s\n", domain, key, value)
+		return nil
+	}
+	line := fmt.Sprintf("defaults write %s %q %s %q", domain, key, t, value)
+	if show {
+		fmt.Println("  would run " + line)
+		return nil
+	}
+	fmt.Println("  → " + line)
+	if _, err := macExec("defaults", "write", domain, key, t, value); err != nil {
+		return fmt.Errorf("defaults write: %w", err)
+	}
+	return nil
+}
+
+// dockBundledCount is how many of Apple's bundled apps are pinned in the
+// Dock: zero means dock-clean has nothing to do. Reads only.
+func dockBundledCount() (int, error) {
+	tmp, err := os.MkdirTemp("", "jat-dock-")
+	if err != nil {
+		return 0, err
+	}
+	defer os.RemoveAll(tmp)
+	work := filepath.Join(tmp, "dock.plist")
+	if _, err := macExec("defaults", "export", "com.apple.dock", work); err != nil {
+		return 0, fmt.Errorf("defaults export com.apple.dock: %w", err)
+	}
+	apps, err := dockApps(work)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, a := range apps {
+		if isBundledApp(a.Path) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 // macExec runs one command and returns its stdout; swapped out in tests so

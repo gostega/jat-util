@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -52,16 +51,7 @@ func toolDeps(tbl map[string]Tool, name, profile string) []string {
 func installed(tbl map[string]Tool, name string) bool {
 	t := tbl[name]
 	if t.App != "" {
-		if runtime.GOOS != "darwin" {
-			return false
-		}
-		home, _ := os.UserHomeDir()
-		for _, dir := range []string{"/Applications", filepath.Join(home, "Applications")} {
-			if _, err := os.Stat(filepath.Join(dir, t.App+".app")); err == nil {
-				return true
-			}
-		}
-		return false
+		return runtime.GOOS == "darwin" && appInstalled(t.App)
 	}
 	bin := t.Bin
 	if bin == "" {

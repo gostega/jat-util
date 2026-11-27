@@ -239,9 +239,11 @@ var tools = map[string]Tool{
 		Group: "Other",
 		// It is a directory, not an executable: installed means its install
 		// dir exists ($OSH, which its installer defaults to ~/.oh-my-bash).
-		Bin:     "bash",
-		Check:   []string{"bash", "-c", `[ -d "${OSH:-$HOME/.oh-my-bash}" ]`},
-		Methods: map[string]string{"curlscript": `bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"`},
+		Bin:   "bash",
+		Check: []string{"bash", "-c", `[ -d "${OSH:-$HOME/.oh-my-bash}" ]`},
+		// "bash" fills $0 for bash -c; --unattended stops the installer
+		// exec-ing a new interactive bash, which would hold jat's terminal.
+		Methods: map[string]string{"curlscript": `bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)" bash --unattended`},
 		Docs:    "https://github.com/ohmybash/oh-my-bash",
 	},
 }

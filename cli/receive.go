@@ -355,10 +355,19 @@ func migrateReceive(args []string) error {
 	all := fs_.Bool("all", false, "skip the picker and apply everything that is not already identical")
 	show := fs_.Bool("show", false, "print what would be written without changing anything")
 	key := fs_.String("key", "", "for --transport vault: which migration, when more than one is waiting")
+	tpl := templateFlag(fs_)
 	fs_.Parse(flagsFirst(fs_, args))
 
+	// A template is a source in its own right: no bundle, no transport.
+	if *tpl != "" {
+		if fs_.NArg() > 0 || *transport != "" || *key != "" {
+			return fmt.Errorf("--template is its own source — drop the bundle, --transport and --key")
+		}
+		return receiveTemplate(*tpl, *all, *show)
+	}
+
 	if fs_.NArg() > 1 {
-		return fmt.Errorf("usage: jat migrate receive [<bundle.tar.gz> | --transport vault [--key <key>]] [--all] [--show]")
+		return fmt.Errorf("usage: jat migrate receive [<bundle.tar.gz> | --transport vault [--key <key>] | --template <name>] [--all] [--show]")
 	}
 	// A key only means something to the vault, so it says how the bundle travelled.
 	if *key != "" && *transport == "" && fs_.NArg() == 0 {

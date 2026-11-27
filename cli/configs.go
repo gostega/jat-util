@@ -29,6 +29,13 @@ var configs = map[string]ConfigItem{
 		Paths: []string{".gitconfig", ".gitconfig-*"},
 		Desc:  "git config and its per-directory includeIf overlays",
 	},
+	"iterm2": {
+		// Dynamic profiles only: they are plain JSON that iTerm2 reloads
+		// live. The main preferences plist is binary, machine-specific and
+		// rewritten by iTerm2 on quit, so it is deliberately not carried.
+		Paths: []string{"Library/Application Support/iTerm2/DynamicProfiles"},
+		Desc:  "iTerm2 dynamic profiles (key maps, colours, fonts)",
+	},
 	"ghostty": {
 		Paths: []string{".config/ghostty"},
 		Desc:  "Ghostty terminal config",

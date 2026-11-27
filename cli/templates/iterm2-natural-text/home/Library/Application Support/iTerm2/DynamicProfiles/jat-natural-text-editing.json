@@ -1,0 +1,19 @@
+{
+  "Profiles": [
+    {
+      "Name": "Natural Text Editing",
+      "Guid": "7369CF0B-DF1E-4820-86C1-AD0061D18C38",
+      "Dynamic Profile Parent Name": "Default",
+      "Keyboard Map": {
+        "0xf702-0x300000": {"Action": 11, "Text": "0x1"},
+        "0xf703-0x300000": {"Action": 11, "Text": "0x5"},
+        "0xf702-0x280000": {"Action": 10, "Text": "b"},
+        "0xf703-0x280000": {"Action": 10, "Text": "f"},
+        "0x7f-0x100000": {"Action": 11, "Text": "0x15"},
+        "0x7f-0x80000": {"Action": 11, "Text": "0x1b 0x7f"},
+        "0xf728-0x80000": {"Action": 10, "Text": "d"},
+        "0xf728-0x0": {"Action": 11, "Text": "0x4"}
+      }
+    }
+  ]
+}

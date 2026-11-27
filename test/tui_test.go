@@ -260,3 +260,26 @@ func TestInstallMenu(t *testing.T) {
 		t.Error("cancel message missing")
 	}
 }
+
+// The template picker: action rows above file rows, each with its state, and
+// esc changes nothing. PATH is empty, so "install tree" is honestly to do.
+func TestTemplatePickerShowsActionsAndFiles(t *testing.T) {
+	home := t.TempDir()
+	writeFiles(t, home, map[string]string{
+		".jat/config.json":                  `{"profile":"macos","host":"test-mac"}`,
+		".jat/templates/demo/template.json": `{"description":"demo","actions":[{"do":"install","tool":"tree","note":"a small tool"}]}`,
+		".jat/templates/demo/home/.zshrc":   "export DEMO=1\n",
+	})
+	s := startTUIPath(t, home, t.TempDir(), 120, 30, "migrate", "receive", "--template", "demo")
+	frame := plain(s.settle(300*time.Millisecond) + s.all.String())
+	for _, want := range []string{"Apply template demo?", "install tree", "to do", "zsh", "absent"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("picker missing %q:\n%s", want, frame)
+		}
+	}
+	s.key(esc)
+	s.settle(200 * time.Millisecond)
+	if _, err := os.Stat(filepath.Join(home, ".zshrc")); err == nil {
+		t.Error("esc still wrote .zshrc")
+	}
+}

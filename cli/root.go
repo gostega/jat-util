@@ -68,6 +68,10 @@ func Main() {
 		err = cmdVault(os.Args[2:])
 	case "mac":
 		err = cmdMac(os.Args[2:])
+	case "template", "templates":
+		err = cmdTemplate(os.Args[2:])
+	case "shell":
+		err = cmdShell(os.Args[2:])
 	case "update":
 		err = cmdUpdate(os.Args[2:])
 	case "release":
@@ -88,8 +92,9 @@ func Main() {
 
 func usage() {
 	fmt.Fprint(os.Stderr, `usage:
-  jat init [--profile <name>] [--host <name>]
-                                     save the OS profile and this machine's name
+  jat init [--profile <name>] [--host <name>] [--template <name|dir> [--all]]
+                                     save the OS profile and this machine's name; optionally
+                                     apply a template (asks, defaulting to none, on a terminal)
   jat install                        menu: pick tools by group, see what depends on what
   jat install <tool> [--<method>]    one tool by this profile's default method
   jat install --all                  everything jat knows that is not yet installed
@@ -102,15 +107,21 @@ func usage() {
   jat list                           known tools and their default method
   jat migrate send [--transport file|vault] [--out <file>] [--all] [--include-secrets] [--show]
                                      pick config and bundle it for another machine
-  jat migrate receive [<bundle> | --transport vault [--key <key>]] [--all] [--show]
-                                     apply a bundle: absent / identical / differs per item
+  jat migrate send --to-template <name|dir> [--all] [--show]
+                                     save the chosen config as a template (never secrets)
+  jat migrate receive [<bundle> | --transport vault [--key <key>] | --template <name|dir>] [--all] [--show]
+                                     apply a bundle or template: absent / identical / differs per item
   jat migrate inspect <bundle> | --key <key> [--files]
                                      what a bundle holds, without applying it
   jat migrate cleanup [<key>] [--show] [--yes]
                                      tidy up backups here and migrations in the vault
   jat vault [set [--manager 1password|bitwarden] [<name or id>]]
                                      the private password-manager vault jat may use
+  jat template [list]                templates: built in, and yours in ~/.jat/templates
+  jat shell <tool> [--show]          make an installed shell the login shell (/etc/shells + chsh)
   jat mac dock-clean [--show]        take Apple's bundled apps out of the Dock, keep the rest
+  jat mac default <domain> <key> -string|-bool|-int <value> [--show]
+                                     defaults write, skipped when already set
   jat update [--check]             replace this binary with the latest release
   jat release [patch|minor|major]    tag and push a new release
   jat version
@@ -123,6 +134,8 @@ func cmdInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	profile := fs.String("profile", "", "profile to use (default: detected from this OS)")
 	host := fs.String("host", "", "name for this machine (default: its hostname)")
+	tpl := templateFlag(fs)
+	all := fs.Bool("all", false, "with --template: apply everything it offers, skipping the picker")
 	fs.Parse(args)
 
 	p := *profile
@@ -148,7 +161,21 @@ func cmdInit(args []string) error {
 		return err
 	}
 	fmt.Printf("profile %q, host %q saved to %s\n", p, h, configPath())
-	return nil
+
+	// A bare init stays bare: a template is applied only when named, or
+	// chosen from the prompt, whose first and default row is "None".
+	name := *tpl
+	if name == "" && stdinIsTerminal() {
+		home, _ := os.UserHomeDir()
+		var err error
+		if name, err = initTemplatePrompt(home); err != nil {
+			return err
+		}
+	}
+	if name == "" {
+		return nil
+	}
+	return receiveTemplate(name, *all, false)
 }
 
 func cmdInstall(args []string) error {

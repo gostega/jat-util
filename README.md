@@ -4,8 +4,8 @@ managing configs, moving between machines, and whatever other housekeeping
 jobs turn out to be worth a subcommand. Migration is one function among many.
 
 Current subcommands: `init`, `install`, `list`, `migrate` (`send`, `receive`,
-`inspect`, `cleanup`), `vault`, `mac` (`dock-clean`), `update`, `release`,
-`version`.
+`inspect`, `cleanup`), `template`, `shell`, `vault`, `mac` (`dock-clean`,
+`default`), `update`, `release`, `version`.
 
 ## INSTALL
 
@@ -84,6 +84,24 @@ jat mac dock-clean                     # take Apple's bundled apps out of the Do
 Dock is backed up to `~/.jat/mac/dock-<timestamp>.plist` first, and the undo
 command is printed at the end.
 
+```sh
+jat mac default com.example.app SomeKey -bool true --show   # defaults write, with a dry run
+```
+
+`jat mac default` is `defaults write` that says what it would do, and does
+nothing when the value is already set.
+
+## SHELL
+
+```sh
+jat install bash        # bash 5 from Homebrew; macOS's own /bin/bash is 3.2 forever
+jat shell bash --show   # what making it the login shell would run
+jat shell bash          # add it to /etc/shells (sudo), then chsh — both ask for your password
+```
+
+`jat shell` only switches to a shell jat counts as installed, so on a Mac it
+will not chsh you to the stock bash 3.2.
+
 ## ABOUT
 
 - OS-agnostic, opinionated per profile. Profile (`macos`, `debian`, ...) is
@@ -152,6 +170,50 @@ jat migrate receive jat-migrate-7f3a.tar.gz [--show] [--all]
   exactly what would go, and asks before deleting. `jat migrate cleanup <key>`
   takes one migration's backups and vault copy together; `--show` previews,
   `--yes` skips the question. `send` never bundles a backup.
+
+### From a template instead of another machine
+
+Lost the old machine, or setting up a first one? A **template** is a bundle
+nobody had to send: files laid out as they sit under `$HOME`, plus the jat
+steps to run (installs, login shell, macOS defaults). Receiving one goes
+through the same picker, diffs and backups as a bundle.
+
+```sh
+jat template list                              # built-ins, and yours
+jat init --template ohmybash                   # init, then apply it — or pick one at init's prompt
+jat migrate receive --template iterm2-natural-text --show
+jat migrate send --to-template my-mac          # save this machine's config as a template
+```
+
+- **Built-in templates** ship inside the binary, so a rebuilt machine has
+  them before anything is cloned:
+  - `ohmybash` — bash 5, oh-my-bash, bash as your login shell, and a
+    `.bash_profile` that puts Homebrew on PATH and loads `.bashrc`.
+  - `iterm2-natural-text` — iTerm2 keys that edit text like a Mac app
+    (⌘←/→ line start/end, ⌥←/→ by word, ⌘⌫ delete line), as a dynamic
+    profile made the default. Skipped entirely when iTerm2 isn't installed.
+- **Your own** live in `~/.jat/templates/<name>/` (a name there hides a
+  built-in of the same name), or anywhere, passed as a path. A template is:
+
+  ```
+  my-mac/template.json     {"description": "...", "extends": ["ohmybash"],
+                            "profiles": ["macos"],
+                            "when": {"iterm2": {"app": "iTerm"}},
+                            "actions": [{"do": "install", "tool": "iterm2"}]}
+  my-mac/home/.gitconfig   files at their $HOME-relative paths
+  ```
+
+  `extends` applies other templates first (this one's files win); `when`
+  keeps a config item's files out unless the condition holds (`app`, `bin`,
+  `profile`); actions are `install`, `login-shell`, `mac-dock-clean` and
+  `mac-default`, each the same as running its jat command, and each shown as
+  done or to do. Actions run before files, since an installer can create a
+  file the template then replaces — and that file is backed up first.
+- Every file must belong to a config item jat carries, and **templates never
+  hold secrets**: a template with a key in it is refused before anything is
+  written, and `send --to-template` will not take `--include-secrets`.
+- `send --to-template` writes `template.json` only when it is missing, so the
+  actions and conditions you added by hand survive a refresh.
 
 ### Through a password manager instead of a file
 

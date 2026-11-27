@@ -1,0 +1,8 @@
+{
+  "description": "bash 5 with oh-my-bash, as your login shell",
+  "actions": [
+    {"do": "install", "tool": "bash"},
+    {"do": "install", "tool": "oh-my-bash", "note": "moves an existing ~/.bashrc to ~/.bashrc.omb-backup-<date>"},
+    {"do": "login-shell", "tool": "bash", "note": "asks for your password: sudo for /etc/shells, then chsh"}
+  ]
+}

@@ -13,8 +13,8 @@ functions are added as subcommands; migration is one of them, not the point of
 the tool. See `README.md` for the user view.
 
 Subcommands live in `main.go`: `init`, `install`, `list`, `migrate` (`send`,
-`receive`, `inspect`, `cleanup`), `vault`, `mac` (`dock-clean`), `update`,
-`release`, `version`.
+`receive`, `inspect`, `cleanup`), `template`, `shell`, `vault`, `mac`
+(`dock-clean`, `default`), `update`, `release`, `version`.
 
 ## Layout
 
@@ -45,7 +45,11 @@ stand-in `op` in `test/testdata/`).
 | `picker.go` | the Bubble Tea multi/single-select picker used by migrate, with its preview pane |
 | `highlight.go` | small per-format tokenizers for syntax colour in the pane; no library by design |
 | `preview.go` | what the pane shows: diffs, file heads, trees — and never a Secret item's contents |
-| `mac.go` | `jat mac`: macOS housekeeping (`dock-clean`), its commands through swappable `macExec` |
+| `mac.go` | `jat mac`: macOS housekeeping (`dock-clean`, `default`), its commands through swappable `macExec` |
+| `template.go` | templates: lookup (path → `~/.jat/templates` → built-in), `extends`/`when`/secret checks, the bundle a template becomes, `receive --template`, `send --to-template`, init's prompt |
+| `templates/` | the built-in templates, embedded in the binary |
+| `action.go` | a template's non-file steps; each kind is an existing jat command plus a "done?" check |
+| `shell.go` | `jat shell`: make an installed shell the login shell (`/etc/shells`, `chsh`) |
 | `update.go` | self-update from GitHub releases; asset naming |
 | `release.go` | `jat release`: tag and publish the repo it runs in (from the remote URL, or `--repo`), from a clean, in-sync HEAD; version from its tags checked against its latest GitHub release |
 
@@ -97,6 +101,16 @@ test, then cross-platform binaries published only for non-`rc` tags.
   only builder such an item may pass through; it shows names and states, never
   bytes or diffs. `TestSecretItemsAreNeverPreviewed` guards it. Do not add a
   "just the first line" exception.
+- **A template is a source, not a second engine.** It becomes a bundle and
+  goes through receive's classify / back up / write path. Its actions are
+  existing jat commands (`action.go` only adds a "done?" check); a new kind
+  of step lands as a subcommand first, then as an action.
+- **Built-in template names say what, never whose** (`ohmybash`, not
+  `<someone>-mac`): the repo is public. Personal templates live in
+  `~/.jat/templates`. `TestBuiltinTemplatesLoad` loads each one on every
+  profile it claims.
+- **Templates never carry secrets.** The loader refuses a file in a `Secret`
+  config item; there is no flag that relaxes it.
 - **`--show` must always be a faithful dry run.** Whatever `install` would
   execute, `--show` prints exactly that.
 
