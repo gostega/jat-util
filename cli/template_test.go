@@ -322,3 +322,38 @@ func TestLoginShellCarriesJatPath(t *testing.T) {
 		t.Error("a jat in /usr/local/bin needs no PATH line")
 	}
 }
+
+// The examples in the repo load like any template passed as a path, on every
+// profile they claim — so an example that rots fails here, not for whoever
+// copies it.
+func TestExampleTemplatesLoad(t *testing.T) {
+	home := t.TempDir()
+	noApps(t, "iTerm", "Ghostty")
+	dirs, err := filepath.Glob(filepath.Join("..", "examples", "templates", "*", "template.json"))
+	if err != nil || len(dirs) == 0 {
+		t.Fatalf("no example templates found: %v", err)
+	}
+	for _, spec := range dirs {
+		dir := filepath.Dir(spec)
+		src, err := findTemplate(dir, home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, _ := readSpec(src.FS, "template.json")
+		for _, profile := range knownProfiles() {
+			lt, err := loadTemplate(dir, home, profile, tools)
+			applies := len(s.Profiles) == 0 || slices.Contains(s.Profiles, profile)
+			switch {
+			case applies && err != nil:
+				t.Errorf("%s on %s: %v", dir, profile, err)
+			case !applies && err == nil:
+				t.Errorf("%s on %s should refuse", dir, profile)
+			case applies && len(lt.Files) == 0 && len(lt.Actions) == 0:
+				t.Errorf("%s on %s applies nothing", dir, profile)
+			}
+		}
+		if strings.Contains(strings.ToLower(dir), "james") {
+			t.Errorf("example %s is personal", dir)
+		}
+	}
+}

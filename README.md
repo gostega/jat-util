@@ -192,6 +192,9 @@ jat migrate send --to-template my-mac          # save this machine's config as a
   - `iterm2-natural-text` — iTerm2 keys that edit text like a Mac app
     (⌘←/→ line start/end, ⌥←/→ by word, ⌘⌫ delete line), as a dynamic
     profile made the default. Skipped entirely when iTerm2 isn't installed.
+- **Examples to copy** are in [`examples/templates/`](examples/templates/):
+  `mac-dev` combines both built-ins with installs, `dock-clean` and a
+  Ghostty key map that only applies when Ghostty is installed.
 - **Your own** live in `~/.jat/templates/<name>/` (a name there hides a
   built-in of the same name), or anywhere, passed as a path. A template is:
 

@@ -1,0 +1,8 @@
+# Ghostty keys that edit text like a Mac app, matching jat's
+# iterm2-natural-text template: ⌘←/→ line start/end, ⌥←/→ by word.
+# Only applied when Ghostty is installed (the "when" in template.json), and it
+# replaces any Ghostty config you have — jat keeps the old one as a backup.
+keybind = cmd+left=text:\x01
+keybind = cmd+right=text:\x05
+keybind = alt+left=esc:b
+keybind = alt+right=esc:f

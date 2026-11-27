@@ -1,0 +1,12 @@
+{
+  "description": "Example: a Mac dev setup built on the built-ins — copy to ~/.jat/templates/<name> and make it yours",
+  "profiles": ["macos"],
+  "extends": ["ohmybash", "iterm2-natural-text"],
+  "when": {"ghostty": {"app": "Ghostty"}},
+  "actions": [
+    {"do": "install", "tool": "iterm2"},
+    {"do": "install", "tool": "vscode"},
+    {"do": "install", "tool": "gh"},
+    {"do": "mac-dock-clean", "note": "removes every Apple-bundled app from the Dock (Safari, Mail, Terminal…), even ones you pinned; other apps stay"}
+  ]
+}
