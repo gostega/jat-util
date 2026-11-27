@@ -27,8 +27,16 @@ type tui struct {
 
 func startTUI(t *testing.T, home string, cols, rows int, args ...string) *tui {
 	t.Helper()
+	return startTUIPath(t, home, os.Getenv("PATH"), cols, rows, args...)
+}
+
+// startTUIPath runs the TUI with an explicit PATH. Anything that reports
+// "installed" must get one the test controls, never the machine's: macOS
+// ships /usr/bin/ruby, so the real PATH made ruby un-tickable on a Mac.
+func startTUIPath(t *testing.T, home, path string, cols, rows int, args ...string) *tui {
+	t.Helper()
 	cmd := exec.Command(jat, args...)
-	cmd.Env = []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "TERM=xterm-256color"}
+	cmd.Env = []string{"HOME=" + home, "PATH=" + path, "TERM=xterm-256color"}
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
 		t.Skipf("no pty available: %v", err)
@@ -206,7 +214,7 @@ func TestSecretItemsNeverRenderContentsInTheTerminal(t *testing.T) {
 func TestInstallMenu(t *testing.T) {
 	home := t.TempDir()
 	writeFiles(t, home, map[string]string{".jat/config.json": `{"profile":"macos","host":"test-mac"}`})
-	s := startTUI(t, home, 130, 45, "install")
+	s := startTUIPath(t, home, t.TempDir(), 130, 45, "install")
 	frame := plain(s.settle(300*time.Millisecond) + s.all.String())
 	for _, want := range []string{"[ All", "Apps", "Package managers", "Runtimes", "homebrew", "├─ mise", "tab/shift+tab group", "ctrl+t invert"} {
 		if !strings.Contains(frame, want) {
