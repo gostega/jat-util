@@ -63,6 +63,12 @@ var tools = map[string]Tool{
 		Methods: map[string]string{"cask": "brew install --cask protonvpn", "manual": ""},
 		Docs:    "https://protonvpn.com/download-macos",
 	},
+	"iterm2": {
+		Group:   "Apps",
+		App:     "iTerm", // the cask installs iTerm.app, not iTerm2.app
+		Methods: map[string]string{"cask": "brew install --cask iterm2", "manual": ""},
+		Docs:    "https://iterm2.com/downloads.html",
+	},
 	"1password": {
 		Group:   "Apps",
 		App:     "1Password",
