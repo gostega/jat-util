@@ -91,7 +91,10 @@ func selfInstall(show, yes bool) error {
 	}
 	target := filepath.Join(dest, "jat")
 
-	if filepath.Dir(self) == dest {
+	// self is symlink-resolved, so compare directories by identity, not by
+	// string: on macOS /var is a link to /private/var, and the same dir
+	// reached both ways must still read as "already installed".
+	if sameDir(filepath.Dir(self), dest) {
 		fmt.Printf("jat is already installed at %s\n", target)
 		return nil
 	}
@@ -190,4 +193,21 @@ func appendLine(path, line string) error {
 	defer f.Close()
 	_, err = fmt.Fprintf(f, "\n# added by jat install --self\n%s\n", line)
 	return err
+}
+
+// sameDir reports whether a and b are the same directory on disk, however
+// each path was spelled (symlinks, trailing slashes).
+func sameDir(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ai, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(ai, bi)
 }
