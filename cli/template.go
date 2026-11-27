@@ -231,18 +231,24 @@ func loadTemplate(arg, home, profile string, tbl map[string]Tool) (*loadedTempla
 			if errors.Is(err, fs.ErrNotExist) && p == "home" {
 				return fs.SkipDir // a template of actions only
 			}
-			if err != nil || !d.Type().IsRegular() {
+			if err != nil {
 				return err
+			}
+			// A symlink to a regular file counts as that file, so a template
+			// in a dotfiles repo can point at the one true copy instead of
+			// holding a second one that drifts.
+			info, err := fs.Stat(src.FS, p)
+			if err != nil {
+				return fmt.Errorf("template %s: %s: %w", src.Name, p, err)
+			}
+			if !info.Mode().IsRegular() {
+				return nil
 			}
 			rel, err := bundleRel(bundlePrefix + strings.TrimPrefix(p, "home/"))
 			if err != nil {
 				return fmt.Errorf("template %s: %w", src.Name, err)
 			}
 			data, err := fs.ReadFile(src.FS, p)
-			if err != nil {
-				return err
-			}
-			info, err := d.Info()
 			if err != nil {
 				return err
 			}

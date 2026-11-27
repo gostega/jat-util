@@ -247,3 +247,29 @@ func TestLoginShellCommands(t *testing.T) {
 		t.Errorf("bash 3.2 must be refused with the fix: %v", err)
 	}
 }
+
+// A template file can be a symlink to the real one elsewhere (a dotfiles
+// repo's single copy); a dangling one is an error, not a silent skip.
+func TestTemplateFollowsSymlinks(t *testing.T) {
+	home := t.TempDir()
+	noApps(t)
+	real := filepath.Join(t.TempDir(), "gitconfig")
+	os.WriteFile(real, []byte("[init]\n  defaultBranch = main\n"), 0o644)
+	writeTpl(t, home, "linked", `{"description":"l"}`, nil)
+	link := filepath.Join(userTemplateDir(home), "linked", "home", ".gitconfig")
+	os.MkdirAll(filepath.Dir(link), 0o755)
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	lt, err := loadTemplate("linked", home, "macos", tools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(fileRels(lt)[".gitconfig"], "defaultBranch") {
+		t.Errorf("symlinked file not carried: %v", fileRels(lt))
+	}
+	os.Remove(real)
+	if _, err := loadTemplate("linked", home, "macos", tools); err == nil {
+		t.Error("a dangling symlink must be an error")
+	}
+}
