@@ -67,12 +67,20 @@ func installed(tbl map[string]Tool, name string) bool {
 	if bin == "" {
 		bin = name
 	}
-	_, err := lookPath(bin)
-	return err == nil
+	if _, err := lookPath(bin); err != nil {
+		return false
+	}
+	return len(t.Check) == 0 || runCheck(t.Check)
 }
 
 // lookPath is a variable so tests can decide what is "installed".
 var lookPath = exec.LookPath
+
+// runCheck runs a Tool's Check; a variable so tests never depend on what the
+// machine has.
+var runCheck = func(argv []string) bool {
+	return exec.Command(argv[0], argv[1:]...).Run() == nil
+}
 
 // installOrder returns want plus every dependency it pulls in, parents
 // before children, in a stable order. Installed dependencies are included

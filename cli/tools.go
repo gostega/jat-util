@@ -9,7 +9,9 @@ package cli
 // implies (brew/cask → homebrew, mise → mise, npm → node; see toolDeps).
 // Bin is the executable whose presence on PATH means "installed" (default:
 // the tool's own name); App is a macOS application bundle name checked in
-// /Applications instead. Neither set means jat cannot tell.
+// /Applications instead. Neither set means jat cannot tell. Check, when set,
+// is a command run once Bin is found: the tool counts as installed only if it
+// exits 0 — for tools where presence is not enough (macOS ships bash 3.2).
 type Tool struct {
 	Group   string
 	Methods map[string]string
@@ -17,6 +19,7 @@ type Tool struct {
 	Needs   []string
 	Bin     string
 	App     string
+	Check   []string
 
 	// Prefer, set only from the user's config, is the method that wins over
 	// the profile order; Installer names the user installer behind it.
@@ -173,6 +176,14 @@ var tools = map[string]Tool{
 		Group:   "CLI tools",
 		Methods: map[string]string{"brew": "brew install yq"},
 		Docs:    "https://github.com/mikefarah/yq",
+	},
+	"bash": {
+		Group: "CLI tools",
+		// /bin/bash on macOS is 3.2 forever (GPLv3); "installed" means the bash
+		// you get from PATH is 5 or later, which is what Homebrew's provides.
+		Check:   []string{"bash", "-c", "(( BASH_VERSINFO[0] >= 5 ))"},
+		Methods: map[string]string{"brew": "brew install bash", "apt": "sudo apt-get install -y bash"},
+		Docs:    "https://www.gnu.org/software/bash/",
 	},
 	"nmap": {
 		Group:   "CLI tools",

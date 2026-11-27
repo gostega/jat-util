@@ -29,7 +29,7 @@ stand-in `op` in `test/testdata/`).
 |---|---|
 | `root.go` | `Main()`: subcommand dispatch, profile detection, version stamp |
 | `selfinstall.go` | `jat install --self`: a downloaded binary puts itself on PATH |
-| `tools.go` | the tool table: group, install methods, dependencies (`Needs`), installed check (`Bin`/`App`) |
+| `tools.go` | the tool table: group, install methods, dependencies (`Needs`), installed check (`Bin`/`App`, plus `Check` where presence is not enough) |
 | `installers.go` | the user's layer over `tools.go`: their installers and per-tool defaults from config, and the `install` subcommands that edit them |
 | `plan.go` | dependency graph, installed detection, install order, dry-run plan and the run itself |
 | `configs.go` | the curated list of config paths `migrate` may carry |
