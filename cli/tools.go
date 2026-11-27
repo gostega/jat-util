@@ -236,7 +236,11 @@ var tools = map[string]Tool{
 		Docs:    "https://www.npmjs.com/package/backlog.md",
 	},
 	"oh-my-bash": {
-		Group:   "Other",
+		Group: "Other",
+		// It is a directory, not an executable: installed means its install
+		// dir exists ($OSH, which its installer defaults to ~/.oh-my-bash).
+		Bin:     "bash",
+		Check:   []string{"bash", "-c", `[ -d "${OSH:-$HOME/.oh-my-bash}" ]`},
 		Methods: map[string]string{"curlscript": `bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"`},
 		Docs:    "https://github.com/ohmybash/oh-my-bash",
 	},
