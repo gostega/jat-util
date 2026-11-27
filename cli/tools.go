@@ -72,6 +72,12 @@ var tools = map[string]Tool{
 		Methods: map[string]string{"cask": "brew install --cask iterm2", "manual": ""},
 		Docs:    "https://iterm2.com/downloads.html",
 	},
+	"bitwarden": {
+		Group:   "Apps",
+		App:     "Bitwarden",
+		Methods: map[string]string{"cask": "brew install --cask bitwarden", "manual": ""},
+		Docs:    "https://bitwarden.com/download/",
+	},
 	"discord": {
 		Group:   "Apps",
 		App:     "Discord",
